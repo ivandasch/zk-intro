@@ -94,19 +94,29 @@ LOOP:
 		for {
 			select {
 			case e := <-changeLeaderChan:
-				if e.Err != nil {
+				if e.Err != nil && !isRecoverable(e.Err) {
 					panic(err)
 				}
 				switch e.Type {
 				case zk.EventNodeDeleted:
 					continue LOOP
+				default:
+					var exists bool
+					exists, _, changeLeaderChan, err = disco.client.ExistsW(e.Path)
+					if err != nil && !isRecoverable(err) {
+						panic(err)
+					}
+					if !exists {
+						continue LOOP
+					}
+					continue
 				}
 			case err := <-disco.client.ErrorChan:
 				disco.ErrorEvents <- err
 				return
 			case <-disco.stopChan:
 				cancel()
-				time.Sleep(1 * time.Second)
+				return
 			}
 		}
 	}
@@ -172,7 +182,7 @@ func (disco *ZkDiscovery) lead(newCluster bool, ctx context.Context) {
 	atomic.CompareAndSwapUint32(&disco.Joined, 0, 1)
 
 	log.Printf("local node %v is leader", disco.localNode)
-LOOP:
+
 	for {
 		var children []string
 		var evt <-chan zk.Event
@@ -224,14 +234,11 @@ LOOP:
 
 		select {
 		case e := <-evt:
-			if e.Err != nil {
+			if e.Err != nil && isRecoverable(e.Err) {
 				disco.ErrorEvents <- e.Err
 				return
 			}
-
-			if e.Type == zk.EventNodeChildrenChanged {
-				continue LOOP
-			}
+			continue
 		case <-ctx.Done():
 			return
 		}
@@ -272,9 +279,8 @@ func (disco *ZkDiscovery) follow(justJoined bool, ctx context.Context) {
 	atomic.CompareAndSwapUint32(&disco.Joined, 0, 1)
 
 	curLeader := disco.leaderNode.Load().(Node)
-	log.Printf(
-		"local node %v is follower, leader is %v\n", disco.localNode, curLeader)
-LOOP:
+	log.Printf("local node %v is follower, leader is %v\n", disco.localNode, curLeader)
+
 	for {
 		if loadClusterData {
 			if err := disco.loadClusterData(ctx); err != nil {
@@ -294,14 +300,11 @@ LOOP:
 
 		select {
 		case e := <-evt:
-			if e.Err != nil {
+			if e.Err != nil && !isRecoverable(e.Err) {
 				disco.ErrorEvents <- e.Err
 				return
 			}
-			switch e.Type {
-			case zk.EventNodeDataChanged:
-				continue LOOP
-			}
+			continue
 		case <-ctx.Done():
 			return
 		}
@@ -376,7 +379,8 @@ func (disco *ZkDiscovery) loadClusterData(ctx context.Context) error {
 			_ = disco.client.Delete(jdPath, -1)
 		}()
 	}()
-LOOP:
+	to := time.NewTimer(10 * time.Second)
+
 	for {
 		exists, _, evt, err := disco.client.ExistsW(jdPath)
 		if err != nil {
@@ -399,21 +403,16 @@ LOOP:
 			return nil
 		}
 
-		to := time.NewTimer(10 * time.Second)
-
-	WAIT:
-		for {
-			select {
-			case e := <-evt:
-				if e.Type == zk.EventNodeCreated {
-					continue LOOP
-				}
-				continue WAIT
-			case <-to.C:
-				return errors.New("failed to join within timeout")
-			case <-ctx.Done():
-				return nil
+		select {
+		case e := <-evt:
+			if e.Err != nil && !isRecoverable(e.Err) {
+				panic(e.Err)
 			}
+			continue
+		case <-to.C:
+			return errors.New("failed to join within timeout")
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
@@ -467,6 +466,10 @@ func (disco *ZkDiscovery) CreateSessionNode(basePath string) (err error) {
 		}
 	}
 	return fmt.Errorf("failed to create session node")
+}
+
+func isRecoverable(err error) bool {
+	return err == zk.ErrSessionMoved || err == zk.ErrConnectionClosed
 }
 
 func (disco *ZkDiscovery) Close() {

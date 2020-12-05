@@ -1,0 +1,69 @@
+[%conceal]
+=== Базовые понятия
+* Сопрограммы (goroutines)
+** Выполняются поверх нитей ОС
+** Имеют свой стек
+** Планировщик внутри runtime
+* Каналы
+** Hoare, C. A. R. (1985). Communicating Sequential Processes. Prentice Hall. ISBN 978-0-13-153289-2.
+
+[%conceal]
+=== Пример 1
+[source, go]
+----
+ch := make(chan string)
+go func() {
+    for i := 0; i < 10; i++ {
+        ch <- strconv.Itoa(i) <2>
+        time.Sleep(1 * time.Second)
+    }
+}() <1>
+
+for {
+    select { <3>
+        case i := <- ch: <4>
+            fmt.Println("Got number: %s", i)
+        case <- closeCh: <5>
+        	return
+    }
+}
+----
+
+=== API GO-style
+[source, go]
+----
+func (client *ZkClient) Exists(path string) (ok bool, stat *zk.Stat, err error)
+func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt <-chan zk.Event, err error) <1>
+func (client *ZkClient) Get(path string) (data []byte, stat *zk.Stat, err error)
+func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt <-chan zk.Event, err error) <1>
+func (client *ZkClient) Children(path string) (children []string, stat *zk.Stat, err error)
+func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat, evt <-chan zk.Event, err error)<1>
+
+func (client *ZkClient) Create(path string, data []byte, flags int32, acl []zk.ACL) (res string, err error)
+func (client *ZkClient) Set(path string, data []byte, version int32) (stat *zk.Stat, err error)
+func (client *ZkClient) Delete(path string, version int32) (err error)
+----
+<1> -- Вместо коллбека -- используется канал для входящих событий
+
+=== Получение данных и подписка
+[source, go]
+----
+for {
+    data, _, evt, err := cli.GetW(path)
+    if err == zk.ErrNoNode {
+        continue
+    } else if err != nil {
+        panic(err)
+    }
+    fmt.Printf("Got new value %s", string(data))
+    select {
+    case e := <-evt:
+        case e := <-evt:
+        if e.Type != zk.EventNodeDataChanged {
+            fmt.Printf("Unexpected type of event %s\n", e.Type)
+        }
+        continue <1>
+    }
+}
+----
+<1> -- Переходим в начало цикла и переподписываемся.

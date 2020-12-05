@@ -14,19 +14,6 @@ const (
 	appDir = "/simple"
 )
 
-func FormatUnixTime(t int64) string {
-	return time.Unix(0, t*int64(time.Millisecond)).Format(time.RFC850)
-}
-
-func FormatZxid(zxid int64) string {
-	return fmt.Sprintf("<%d, %d>", zxid>>32, zxid&0xFFFF)
-}
-func FormatStat(stat *zk.Stat) string {
-	return fmt.Sprintf("[czxid=%s, cdate=%s, mzxid=%s, mdate= %s]",
-		FormatZxid(stat.Czxid), FormatUnixTime(stat.Ctime),
-		FormatZxid(stat.Mzxid), FormatUnixTime(stat.Mtime))
-}
-
 func DoInLock(lock *Lock, closure func() error, fake bool) error {
 	if !fake {
 		err := lock.Lock()
@@ -56,7 +43,7 @@ func main() {
 	args := os.Args
 	if len(args) == 1 || args[1] == "watcher" {
 		val := 0
-	WATCHER:
+		cnt := 0
 		for {
 			data, _, evt, err := cli.GetW(path)
 			if err == zk.ErrNoNode {
@@ -66,19 +53,24 @@ func main() {
 			}
 			newVal, _ := strconv.Atoi(string(data))
 			if newVal <= val {
-				fmt.Printf("Violation oldVal=%d newVal=%d, oldVal >= newVal\n", val, newVal)
+				fmt.Printf("violation oldVal=%d newVal=%d, oldVal >= newVal\n", val, newVal)
 			}
 			val = newVal
+			cnt++
+			if cnt%1000 == 0 {
+				fmt.Printf("number of iterations %d\n", cnt)
+			}
 			select {
 			case e := <-evt:
-				if e.Type == zk.EventNodeDataChanged {
-					continue WATCHER
+				if e.Type != zk.EventNodeDataChanged {
+					fmt.Printf("Unexpected type of event %s\n", e.Type)
 				}
 				continue
 			}
 		}
 	} else if args[1] == "writer" {
 		rand.Seed(time.Now().UTC().UnixNano())
+		fakeLock := len(args) > 2 && args[2] == "fake"
 		lock := NewLock(cli, zk_client.Join(appDir, "lock"), zk.WorldACL(zk.PermAll))
 		for {
 			err := DoInLock(lock, func() error {
@@ -94,7 +86,7 @@ func main() {
 					_, err = cli.Set(path, []byte(strconv.Itoa(val+1)), -1)
 				}
 				return err
-			}, false)
+			}, fakeLock)
 			if err != nil {
 				panic(err)
 			}

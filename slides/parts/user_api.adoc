@@ -1,0 +1,63 @@
+=== Структура данных
+Иерархическая древовидная структура данных:
+
+* Узел дерева содержит массив данных, пути к дочерним узлам, структуру `Stat`
+* По факту представляет собой хэш таблицу узлов + служебные структуры данных
+
+Типы узлов:
+
+* `EPHEMERAL`
+* `EPHEMERAL_SEQUENTIAL`
+* `PERSISTENT`
+* `PERSISTENT_SEQUENTIAL`
+
+
+=== API
+[source, java]
+----
+class Zookeeper {
+    String create(String path, byte data[], List<ACL> acl, CreateMode createMode);
+    Stat setData(String path, byte data[], int version);
+    void delete(String path, int version);
+
+    Stat exists(String path, Watcher watcher);
+    List<String> getChildren(String path, Watcher watcher, Stat stat);
+    byte[] getData(String path, Watcher watcher, Stat stat);
+}
+----
+
+=== Отслеживание изменений (Watcher)
+[source, java]
+----
+class WatchedEvent {
+    KeeperState keeperState;
+    EventType eventType;
+    String path;
+}
+
+interface Watcher {
+    void process(WatchedEvent event);
+    interface Event {
+        static enum EventType {
+            None(-1),
+            NodeCreated(1),
+            NodeDeleted(2),
+            NodeDataChanged(3),
+            NodeChildrenChanged(4),
+            DataWatchRemoved(5),
+            ChildWatchRemoved(6);
+        }
+        static enum KeeperState {
+            Unknown(-1),
+            Disconnected(0),
+            NoSyncConnected(1),
+            SyncConnected(3),
+            AuthFailed(4),
+            ConnectedReadOnly(5),
+            SaslAuthenticated(6),
+            Expired(-112),
+            Closed(7);
+        }
+    }
+}
+----

@@ -78,10 +78,10 @@ func (l *Lock) Lock() error {
 			break
 		}
 
-		_, _, ch, err := l.cli.GetW(l.path + "/" + prevOrderPath)
-		if err != nil && err != zk.ErrNoNode {
+		exists, _, ch, err := l.cli.ExistsW(l.path + "/" + prevOrderPath)
+		if err != nil {
 			return err
-		} else if err != nil && err == zk.ErrNoNode {
+		} else if !exists {
 			continue
 		}
 

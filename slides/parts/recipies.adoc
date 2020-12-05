@@ -1,0 +1,68 @@
+=== Мьютекс (naive) ===
+[source, go]
+----
+func (l *Lock) Lock() error {
+    path := l.CreateLockNode() //-lock/guid-00000x
+    order := parseSeq(path)
+
+    for {
+        children, _, evt, _ := l.cli.ChildrenW(l.path)
+        lowestOrder := process(children)
+
+        if order == lowestOrder {
+            break
+        }
+
+        ev := <-evt
+        if ev.Err != nil {
+            return ev.Err
+        }
+    }
+
+    l.order = order
+    l.lock = path
+    return nil
+}
+
+func (l *Lock) Unlock() {
+	_ = l.cli.Delete(l.lock, -1)
+}
+----
+=== Что не так? ===
+[.text-center]
+.Thundering herd problem
+image::thundering_herd.png[width=50%]
+
+=== Мьютекс ===
+[source, go]
+----
+func (l *Lock) Lock() error {
+    path := l.CreateLockNode()
+    order := parseSeq(path)
+
+    for {
+        children, _, _ := l.cli.Children(l.path)
+        lowestOrder, prevOrderPath := process(children)
+
+        if order == lowestOrder {
+            break
+        }
+
+        exists, _, ch, err := l.cli.ExistsW(l.path + "/" + prevOrderPath)
+        if err != nil {
+            return err
+        } else if !exists {
+            continue
+        }
+
+        ev := <-ch
+        if ev.Err != nil {
+            return ev.Err
+        }
+    }
+
+    l.order = order
+    l.lock = path
+    return nil
+}
+----

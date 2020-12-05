@@ -4,179 +4,21 @@
 :customcss: style.css
 :source-highlighter: highlightjs
 :highlightjs-theme:  github.css
+:author: Дащинский Иван
+
+= Apache Zookeeper. Паттерны использования.
 
 == Zookeeper основы.
-=== strong leadership ===
-. В любой момент времени может быть только **один лидер**
-. Запросы на **изменения** данных перенаправляются и обрабатываются только **лидером**
-. Запросы на изменения данных подтверждаются **кворумом** +
-stem:[Q \subseteq {s_1, s_2, ... s_N} : |Q| > N/2]
-. Перед подтверждением, транзакция записывается каждым сервером в
-транзакционный журнал на диск (**transactional log**)
-. Периодически происходит запись состояния реплицированной структуры данных в персистентную память
-(**snapshot**)
+include::parts/foundation.adoc[]
 
-=== Диаграмма состояний сервера
-[plantuml, "zk_service_state"]
-----
-@startuml
-[*] --> LOOKING
-LOOKING -right-> LEADING
-LEADING -left-> LOOKING
-FOLLOWING -right-> LOOKING
-LOOKING -left-> FOLLOWING
-@enduml
-----
+== Клиентское API
+include::parts/user_api.adoc[]
 
-=== ZAB. Лидер (LEADER)
-. При получении запроса на изменение от клиента или последователя:
-.. Генерирует предложение (`PROPOSAL`) и отправляет последователям.
-.. Синхронизирует данные в журнал транзакции и генерирует подтверждение от себя (`ACK`)
-. При получении подтверждений (`ACK`) от кворума отсылает запрос `COMMIT` и изменяет у себя данные
-
-[plantuml, "leader_zab"]
-----
-@startuml
-hide empty description
-state end1 <<end>>
-state end0 <<end>>
-
-[*] -right-> PrepRequestProcessor
-PrepRequestProcessor -right-> ProposalRequestProcessor
-ProposalRequestProcessor -right-> CommitRequestProcessor
-CommitRequestProcessor -right-> ToBeAppliedProcessor
-ToBeAppliedProcessor -right-> FinalRequestProcessor
-FinalRequestProcessor -right-> end0
-ProposalRequestProcessor -down-> SyncRequestProcessor
-SyncRequestProcessor -right->AckRequestProcessor
-AckRequestProcessor -right-> end1
-@enduml
-----
-
-=== ZAB. Последователь (FOLLOWER)
-
-. При получении запроса на изменения от клиента:
-.. Перенаправляет запросы на изменения лидеру
-.. При получении `COMMIT` меняет структуру данных
-. При получении предложения от лидера (`PROPOSAL`):
-.. Синхронизирует данные в журнал транзакций
-.. Шлет подтверждение лидеру (`ACK`)
-
-[plantuml, "follower_zab_1"]
-----
-@startuml
-hide empty description
-[*] -right-> FollowerRequestProcessor
-FollowerRequestProcessor -right-> CommitRequestProcessor
-CommitRequestProcessor -right-> FinalRequestProcessor
-FinalRequestProcessor -right-> [*]
-@enduml
-----
-[plantuml, "follower_zab_2"]
-----
-@startuml
-hide empty description
-[*] -right-> SyncRequestProcessor
-SyncRequestProcessor -right-> AckRequestProcessor
-AckRequestProcessor -right-> [*]
-@enduml
-----
-
-=== ZAB (Гарантии)
-**Обозначения**
-
-. Эпоха -- stem:[E := \{e_i : i \in N, e_i < e_j \}]
-. Лидер -- stem:[\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i < e_j ]
-. Идентификатор транзакции -- stem:[z := <e_i, j>, j \in N ]
-. Транзакция -- stem:[tx_{v,z} := \langle v, z \rangle]
-Транзакции распространяются лидером и фиксируются серверами.
-
-=== ZAB (Гарантии)
-* Если на каком-то из серверов stem:[\langle v, z \rangle] зафиксирована, то она была распространена
-каким-то из серверов
-* Если на каком-то из серверов stem:[\langle v, z \rangle] зафиксирована до stem:[\langle v', z' \rangle],
-то на любом сервере , на котором зафиксирована stem:[\langle v', z' \rangle],
-обязана быть зафиксирована stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle]
-* Если на каком-то сервере stem:[s] зафиксирована stem:[\langle v, z \rangle], а на
-stem:[s'] зафиксирована stem:[\langle v', z' \rangle], то либо на stem:[s] зафиксирована
-также stem:[\langle v', z' \rangle], либо на stem:[s'] зафиксирована stem:[\langle v, z \rangle]
-
-=== ZAB (Гарантии)
-* Если stem:[\lambda_i] распространил stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle],
-то сервер, зафиксировавший stem:[\langle v', z' \rangle], обязан зафиксировать stem:[\langle v, z \rangle]
-до stem:[\langle v', z' \rangle]
-* Пусть stem:[\lambda_j \succ \lambda_i], stem:[\lambda_i] распространил stem:[\langle v, z \rangle],
-stem:[\lambda_j] распространил stem:[\langle v', z' \rangle]. Тогда если какой-нибудь сервер зафиксировал
-stem:[\langle v, z \rangle] и stem:[\langle v', z' \rangle], то он обязан зафиксировать
-stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle]
-* Пусть stem:[\lambda_j \succ \lambda_i], stem:[\lambda_i] распространил stem:[\langle v, z \rangle],
-stem:[\lambda_j] распространяет stem:[\langle v', z' \rangle] и какой-нибудь процесс зафиксировал
-stem:[\langle v, z \rangle]. Тогда stem:[\langle v, z \rangle] обязана быть зафиксирована
-на stem:[\lambda_j] до распространения stem:[\langle v', z' \rangle]
-
-=== Выборы лидера (LEADER ELECTION)
-. Создаем свой голос stem:[v := \langle S_{id}, zxid\rangle]
-. Отправляем голос другим серверам
-. При получении голоса stem:[v' := \langle S'_{id}, zxid'\rangle] от другого сервера
-.. Если stem:[zxid > zxid' \lor zxid = zxid', S_{id} > S'_{id}] то отправляем свой голос повторно
-.. Иначе меняем свой голос на stem:[v']
-. Продолжаем выборы пока не получим от всех серверов одинаковые голоса.
-
-== Структура данных
-Иерархическая древовидная структура данных:
-
-* Узел дерева содержит массив данных, пути к дочерним узлам, структуру `Stat`
-* По факту представляет собой хэш таблицу узлов + служебные структуры данных
-
-Типы узлов:
-
-* `EPHEMERAL`
-* `EPHEMERAL_SEQUENTIAL`
-* `PERSISTENT`
-* `PERSISTENT_SEQUENTIAL`
-
-
-== Структура данных, API
-[source, java]
-----
-class Zookeeper {
-    String create(String path, byte data[], List<ACL> acl, CreateMode createMode);
-    Stat setData(String path, byte data[], int version);
-    void delete(String path, int version);
-
-    Stat exists(String path, Watcher watcher);
-    List<String> getChildren(String path, Watcher watcher, Stat stat);
-    byte[] getData(String path, Watcher watcher, Stat stat);
-}
-----
 == "Введение" в GO ==
-* Сопрограммы (goroutines)
-** Выполняются поверх нитей ОС
-** Имеют свой стек
-** Планировщик внутри runtime
-* Каналы
-** Hoare, C. A. R. (1985). Communicating Sequential Processes. Prentice Hall. ISBN 978-0-13-153289-2.
+include::parts/go.adoc[]
 
-[source, go]
-----
-ch := make(chan string)
-go func() {
-    for i := 0; i < 10; i++ {
-        ch <- strconv.Itoa(i) <2>
-        time.Sleep(1 * time.Second)
-    }
-}() <1>
-
-for {
-    select { <3>
-        case i := <- ch: <4>
-            fmt.Println("Got number: %s", i)
-        case <- closeCh: <5>
-        	return
-    }
-}
-----
-
+== Рецепты ==
+include::parts/recipies.adoc[]
 
 == Zookeeper пример
 [cols="3,1", options="header"]
