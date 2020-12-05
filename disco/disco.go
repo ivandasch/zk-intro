@@ -124,7 +124,6 @@ LOOP:
 
 func (disco *ZkDiscovery) checkLeader(nodePath string) (leader bool, currLeader Node, ev <-chan zk.Event, err error) {
 	localNode, err := NewNode(nodePath)
-LOOP:
 	for {
 		var children []string
 		children, _, err = disco.client.Children(alivePath)
@@ -151,7 +150,7 @@ LOOP:
 				return
 			}
 			if !exists {
-				continue LOOP
+				continue
 			}
 			leader = false
 			if _, v := nodes.Min(); v != nil {
@@ -162,6 +161,7 @@ LOOP:
 			}
 		} else {
 			leader = true
+			currLeader = localNode
 		}
 		return
 	}

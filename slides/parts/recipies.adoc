@@ -6,7 +6,7 @@ func (l *Lock) Lock() error {
     order := parseSeq(path)
 
     for {
-        children, _, evt, _ := l.cli.ChildrenW(l.path)
+        children, _, evt, _ := l.zk_client.ChildrenW(l.path)
         lowestOrder := process(children)
 
         if order == lowestOrder {
@@ -25,7 +25,7 @@ func (l *Lock) Lock() error {
 }
 
 func (l *Lock) Unlock() {
-	_ = l.cli.Delete(l.lock, -1)
+	_ = l.zk_client.Delete(l.lock, -1)
 }
 ----
 === Что не так? ===
@@ -41,14 +41,14 @@ func (l *Lock) Lock() error {
     order := parseSeq(path)
 
     for {
-        children, _, _ := l.cli.Children(l.path)
-        lowestOrder, prevOrderPath := process(children)
+        children, _, _ := l.zk_client.Children(l.path) <1>
+        lowestOrder, prevOrderPath := process(children, order)
 
         if order == lowestOrder {
             break
         }
 
-        exists, _, ch, err := l.cli.ExistsW(l.path + "/" + prevOrderPath)
+        exists, _, ch, err := l.zk_client.ExistsW(l.path + "/" + prevOrderPath) <2>
         if err != nil {
             return err
         } else if !exists {
@@ -66,3 +66,78 @@ func (l *Lock) Lock() error {
     return nil
 }
 ----
+<1> -- Берем дочерние узлы без отслеживания
+<2> -- Отслеживаем предыдущий узел
+
+=== Выбор лидера ===
+[source, go]
+----
+func NewService() *Service {
+    service := &Service{
+        ....
+    }
+    service.localNodePath = createServiceNode // EPHEMERAL_SEQUENTIAL, _services/guid-0000x
+    go loop()
+    return &service
+}
+
+func (service *Service) loop() {
+    LOOP:
+    for {
+        isLeader, changeLeaderChan, err := service.checkLeader(service.localNodePath)
+
+        if isLeader {
+            go service.lead()
+        } else {
+            go service.follow()
+        }
+
+        for {
+            select {
+            case e := <-changeLeaderChan:
+                switch e.Type {
+                case zk.EventNodeDeleted:
+                    continue LOOP
+                default:
+                    var exists bool
+                    exists, _, changeLeaderChan, _ = service.zk_client.ExistsW(e.Path)
+
+                    if !exists {
+                        continue LOOP
+                    }
+                    continue
+                }
+            }
+        }
+    }
+}
+----
+
+=== Выбор лидера ===
+[source, go]
+----
+func (service *Service) checkLeader(nodePath string) (bool, ev <-chan zk.Event, error) {
+	for {
+		children, _, err := disco.client.Children(alivePath)
+        order := parseSeq(nodePath)
+        lowestOrder, previousOrderPath := process(children, order)
+
+        if lowestOrder == order {
+            return true, nil, nil
+        } else {
+            exists, _, ev, err = service.zk_client.ExistsW(previousOrderPath) <1>
+            if !exists {
+                continue
+            } else {
+                return false, ev, nil
+            }
+        }
+}
+----
+<1> -- Вопрос залу -- почему так?
+
+=== Рецепты это сложно
+[%step]
+* Что делать?
+* Используйте https://curator.apache.org/curator-framework[Apache Curator] (Если Java)
+* Если не Java, ищите готовые аналоги.
