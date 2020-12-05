@@ -1,10 +1,16 @@
 :imagesdir: images
+:stem: latexmath
+:revealjs_theme: simple
+:customcss: style.css
+:source-highlighter: highlightjs
+:highlightjs-theme:  github.css
+
 == Zookeeper основы.
-=== Система с "сильным лидером" (strong leadership) ===
+=== strong leadership ===
 . В любой момент времени может быть только **один лидер**
 . Запросы на **изменения** данных перенаправляются и обрабатываются только **лидером**
 . Запросы на изменения данных подтверждаются **кворумом** +
-latexmath:[Q \subseteq {s_1, s_2, ... s_N} : |Q| > N/2]
+stem:[Q \subseteq {s_1, s_2, ... s_N} : |Q| > N/2]
 . Перед подтверждением, транзакция записывается каждым сервером в
 транзакционный журнал на диск (**transactional log**)
 . Периодически происходит запись состояния реплицированной структуры данных в персистентную память
@@ -22,9 +28,7 @@ LOOKING -left-> FOLLOWING
 @enduml
 ----
 
-=== Изменения и репликация данных (ZAB).
-**Лидер (LEADER)**
-
+=== ZAB. Лидер (LEADER)
 . При получении запроса на изменение от клиента или последователя:
 .. Генерирует предложение (`PROPOSAL`) и отправляет последователям.
 .. Синхронизирует данные в журнал транзакции и генерирует подтверждение от себя (`ACK`)
@@ -49,7 +53,7 @@ AckRequestProcessor -right-> end1
 @enduml
 ----
 
-**Последователь (FOLLOWER)**
+=== ZAB. Последователь (FOLLOWER)
 
 . При получении запроса на изменения от клиента:
 .. Перенаправляет запросы на изменения лидеру
@@ -58,63 +62,64 @@ AckRequestProcessor -right-> end1
 .. Синхронизирует данные в журнал транзакций
 .. Шлет подтверждение лидеру (`ACK`)
 
-[plantuml, "follower_zab"]
+[plantuml, "follower_zab_1"]
 ----
 @startuml
 hide empty description
-state start1 <<end>>
-state start0 <<end>>
-state end1 <<end>>
-state end0 <<end>>
-
-start1 -right-> FollowerRequestProcessor
+[*] -right-> FollowerRequestProcessor
 FollowerRequestProcessor -right-> CommitRequestProcessor
 CommitRequestProcessor -right-> FinalRequestProcessor
-FinalRequestProcessor -right-> end1
-start0 -right-> SyncRequestProcessor
+FinalRequestProcessor -right-> [*]
+@enduml
+----
+[plantuml, "follower_zab_2"]
+----
+@startuml
+hide empty description
+[*] -right-> SyncRequestProcessor
 SyncRequestProcessor -right-> AckRequestProcessor
-AckRequestProcessor -right-> end0
+AckRequestProcessor -right-> [*]
 @enduml
 ----
 
 === ZAB (Гарантии)
 **Обозначения**
 
-. Эпоха -- latexmath:[E := \{e_i : i \in N, e_i < e_j \}]
-. Лидер -- latexmath:[\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i < e_j ]
-. Идентификатор транзакции -- latexmath:[z := <e_i, j>, j \in N ]
-. Транзакция -- latexmath:[tx_{v,z} := \langle v, z \rangle]
+. Эпоха -- stem:[E := \{e_i : i \in N, e_i < e_j \}]
+. Лидер -- stem:[\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i < e_j ]
+. Идентификатор транзакции -- stem:[z := <e_i, j>, j \in N ]
+. Транзакция -- stem:[tx_{v,z} := \langle v, z \rangle]
 Транзакции распространяются лидером и фиксируются серверами.
 
-**Свойства**
-
-* Если на каком-то из серверов latexmath:[\langle v, z \rangle] зафиксирована, то она была распространена
+=== ZAB (Гарантии)
+* Если на каком-то из серверов stem:[\langle v, z \rangle] зафиксирована, то она была распространена
 каким-то из серверов
-* Если на каком-то из серверов latexmath:[\langle v, z \rangle] зафиксирована до latexmath:[\langle v', z' \rangle],
-то на любом сервере , на котором зафиксирована latexmath:[\langle v', z' \rangle],
-обязана быть зафиксирована latexmath:[\langle v, z \rangle] до latexmath:[\langle v', z' \rangle]
-* Если на каком-то сервере latexmath:[s] зафиксирована latexmath:[\langle v, z \rangle], а на
-latexmath:[s'] зафиксирована latexmath:[\langle v', z' \rangle], то либо на latexmath:[s] зафиксирована
-также latexmath:[\langle v', z' \rangle], либо на latexmath:[s'] зафиксирована latexmath:[\langle v, z \rangle]
+* Если на каком-то из серверов stem:[\langle v, z \rangle] зафиксирована до stem:[\langle v', z' \rangle],
+то на любом сервере , на котором зафиксирована stem:[\langle v', z' \rangle],
+обязана быть зафиксирована stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle]
+* Если на каком-то сервере stem:[s] зафиксирована stem:[\langle v, z \rangle], а на
+stem:[s'] зафиксирована stem:[\langle v', z' \rangle], то либо на stem:[s] зафиксирована
+также stem:[\langle v', z' \rangle], либо на stem:[s'] зафиксирована stem:[\langle v, z \rangle]
 
-* Если latexmath:[\lambda_i] распространил latexmath:[\langle v, z \rangle] до latexmath:[\langle v', z' \rangle],
-то сервер, зафиксировавший latexmath:[\langle v', z' \rangle], обязан зафиксировать latexmath:[\langle v, z \rangle]
-до latexmath:[\langle v', z' \rangle]
-* Пусть latexmath:[\lambda_j \succ \lambda_i], latexmath:[\lambda_i] распространил latexmath:[\langle v, z \rangle],
-latexmath:[\lambda_j] распространил latexmath:[\langle v', z' \rangle]. Тогда если какой-нибудь сервер зафиксировал
-latexmath:[\langle v, z \rangle] и latexmath:[\langle v', z' \rangle], то он обязан зафиксировать
-latexmath:[\langle v, z \rangle] до latexmath:[\langle v', z' \rangle]
-* Пусть latexmath:[\lambda_j \succ \lambda_i], latexmath:[\lambda_i] распространил latexmath:[\langle v, z \rangle],
-latexmath:[\lambda_j] распространяет latexmath:[\langle v', z' \rangle] и какой-нибудь процесс зафиксировал
-latexmath:[\langle v, z \rangle]. Тогда latexmath:[\langle v, z \rangle] обязана быть зафиксирована
-на latexmath:[\lambda_j] до распространения latexmath:[\langle v', z' \rangle]
+=== ZAB (Гарантии)
+* Если stem:[\lambda_i] распространил stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle],
+то сервер, зафиксировавший stem:[\langle v', z' \rangle], обязан зафиксировать stem:[\langle v, z \rangle]
+до stem:[\langle v', z' \rangle]
+* Пусть stem:[\lambda_j \succ \lambda_i], stem:[\lambda_i] распространил stem:[\langle v, z \rangle],
+stem:[\lambda_j] распространил stem:[\langle v', z' \rangle]. Тогда если какой-нибудь сервер зафиксировал
+stem:[\langle v, z \rangle] и stem:[\langle v', z' \rangle], то он обязан зафиксировать
+stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle]
+* Пусть stem:[\lambda_j \succ \lambda_i], stem:[\lambda_i] распространил stem:[\langle v, z \rangle],
+stem:[\lambda_j] распространяет stem:[\langle v', z' \rangle] и какой-нибудь процесс зафиксировал
+stem:[\langle v, z \rangle]. Тогда stem:[\langle v, z \rangle] обязана быть зафиксирована
+на stem:[\lambda_j] до распространения stem:[\langle v', z' \rangle]
 
 === Выборы лидера (LEADER ELECTION)
-. Создаем свой голос latexmath:[v := \langle S_{id}, zxid\rangle]
+. Создаем свой голос stem:[v := \langle S_{id}, zxid\rangle]
 . Отправляем голос другим серверам
-. При получении голоса latexmath:[v' := \langle S'_{id}, zxid'\rangle] от другого сервера
-.. Если latexmath:[zxid > zxid' \lor zxid = zxid', S_{id} > S'_{id}] то отправляем свой голос повторно
-.. Иначе меняем свой голос на latexmath:[v']
+. При получении голоса stem:[v' := \langle S'_{id}, zxid'\rangle] от другого сервера
+.. Если stem:[zxid > zxid' \lor zxid = zxid', S_{id} > S'_{id}] то отправляем свой голос повторно
+.. Иначе меняем свой голос на stem:[v']
 . Продолжаем выборы пока не получим от всех серверов одинаковые голоса.
 
 == Структура данных
