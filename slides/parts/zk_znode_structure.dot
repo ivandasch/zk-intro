@@ -1,0 +1,42 @@
+digraph ZK {
+    graph [ dpi = 150 ];
+    node [shape="folder"];
+    root[label="<root>"];
+    n[label=<
+      <FONT POINT-SIZE="20">N</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">сессии</FONT>>
+    ];
+    ce[label=<
+      <FONT POINT-SIZE="20">CE</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">сообщения</FONT>>
+    ];
+    ca[label=<
+      <FONT POINT-SIZE="20">CA</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">ack сообщ.</FONT>>
+    ];
+    jd[label=<
+      <FONT POINT-SIZE="20">JD</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">мета новых узлов.</FONT><BR/>>
+    ];
+    e[label=<
+      <FONT POINT-SIZE="20">E</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">события</FONT>>
+    ];
+    fj1[label=<
+      <FONT POINT-SIZE="15">FJ-&lt;evt1&gt;</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">мета для нов. узла</FONT>>
+    ];
+    fj2[label=<
+      <FONT POINT-SIZE="15">FJ-&lt;evt2&gt;</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">мета для нов. узла</FONT>>
+    ];
+    fjN[label=<
+      <FONT POINT-SIZE="15">FJ-&lt;evtN&gt;</FONT><BR/>
+      <FONT POINT-SIZE="10" COLOR="RED">мета для нов. узла</FONT>>
+    ];
+    root -> n; root->jd; root -> e;
+    e -> fj1; e->fj2; e->fjN;
+    n -> n1; n -> n2; n -> nN;
+    jd -> jd1; jd -> jd2; jd -> jd3;
+    root -> ce; root -> ca;
+}

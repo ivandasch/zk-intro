@@ -1,8 +1,11 @@
-.PHONY: help lock disco
+.PHONY: help lock disco dependencies
 all: help
 help: Makefile
 	@echo " Choose a command to run :"
 	@sed -n 's/^##//p' $< | column -t -s ':' |  sed -e 's/^/ /'
+
+dependencies:
+	go mod download
 
 watcher-lock:
 	go run -race ./lock watcher

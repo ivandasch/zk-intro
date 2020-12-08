@@ -1,0 +1,176 @@
+=== TcpDiscovery ===
+[graphviz, "disco_ring", scale=0.5]
+----
+digraph g1 {
+    layout="circo";
+    node [shape = doublecircle]; N0[label="N0"];
+    node [shape = circle];
+    N0 -> N1 ;
+    N1 -> N2;
+    N2 -> N3 ;
+    N3 -> N4;
+    N4 -> N5;
+    N5 -> N6;
+    N6 -> N0;
+}
+----
+
+[.columns.is-vcentered]
+=== TcpDiscovery ===
+* Линейное время обхода.
+* Проблема на 1 узле -- проблема на всем кластере.
+
+[.column]
+[graphviz, "disco_ring_1_trouble", scale=0.5]
+----
+digraph g1 {
+    layout="circo";
+    node [shape = doublecircle]; N0[label="N0"];
+    node [shape = circle]; N4[fillcolor=firebrick1;  style=filled];
+    N0 -> N1 ;
+    N1 -> N2;
+    N2 -> N3 ;
+    N3 -> N4;
+    N4 -> N5;
+    N5 -> N6;
+    N6 -> N0;
+}
+----
+
+[.column]
+
+[graphviz, "disco_ring_all_trouble", scale=0.5]
+----
+digraph g1 {
+    layout="circo";
+    node [shape = doublecircle; fillcolor=firebrick1;  style=filled];
+    N0[label="N0"]; node [shape = circle];
+    N0 -> N1 ;
+    N1 -> N2;
+    N2 -> N3 ;
+    N3 -> N4;
+    N4 -> N5;
+    N5 -> N6;
+    N6 -> N0;
+}
+----
+=== Гарантии Discovery в Ignite
+[%step]
+* В один момент времени один лидер (координатор)
+* Упорядоченность событий
+* Гарантируется доставка сообщений до всех узлов кластера
+
+[.columns.is-vcentered]
+=== ZookeeperDisсovery
+[.columnt.is-full]
+* Оповещаются узлы независимо.
+* Проблемы на 1 узле другие узлы не затрагивает.
+
+[.column]
+[graphviz, "zk_ignite_cluster"]
+-----
+digraph ZK {
+    layout = circo;
+    graph [ dpi = 150 ];
+    node [shape=doubleoctagon];
+    zk[label="zk"]
+    node [shape=circle];
+    N1, N2, N3, N4, N5, N6;
+    node [shape = doublecircle];
+    N0; N0 -> zk;
+    N1 -> zk; N2 -> zk; N3 -> zk;
+    N4 -> zk; N5 -> zk; N6 -> zk;
+}
+-----
+
+[.column]
+[graphviz, "zk_ignite_cluster_trouble"]
+-----
+digraph ZK {
+    layout = circo;
+    graph [ dpi = 150 ];
+    node [shape=doubleoctagon];
+    zk[label="zk"]
+    node [shape=circle];
+    N1, N2, N3, N4, N5;
+    node [shape = doublecircle];
+    N0;
+    node [fillcolor=firebrick1;  style=filled] N6
+    node [shape = doublecircle];
+    N0 -> zk;
+    N1 -> zk; N2 -> zk; N3 -> zk;
+    N4 -> zk; N5 -> zk; N6 -> zk;
+}
+-----
+
+=== ZookeeperDiscovery. Схема
+graphviz::parts/zk_znode_structure.dot[format=png]
+
+=== ZookeeperDiscovery
+* Каждый узел регистрирует **/<root>/n/guid-0000x** (`EPHEMERAL_SEQUENTIAL`)
+* Серверные узлы участвуют в выборе лидера(координатора) (см. рецепт `_Leader Election_`)
+
+=== ZookeeperDiscovery. События
+* Все события генерирует только координатор
+* События сохраняются в **/<root>/e** в виде
+** Упорядоченный список событий
+** Версия топологии
+** Номер последнего события и номер последнего сообщения
+* Остальные узлы кластера отслеживают изменения в этой znode.
+* По обработке события узлы сохраняют номер последнего обработанного события в **/<root>/n/guid-0000x**
+* Координатор отслеживает изменения данных в каждой znode в **/<root>/n** и удаляет из списка
+события, которые уже обработаны всеми узлами кластера.
+
+=== ZookeeperDiscovery. Схема
+graphviz::parts/zk_znode_structure.dot[format=png]
+
+=== ZookeeperDiscovery. Вход узла в топологию.
+* При входе узла, узел создает
+** Собственную znode **/<root>/n/guid-0000x** (`EPHEMERAL_SEQUENTIAL`)
+** Метаданные, которыми узел делится с кластером **/<root>/jd/<guid>**
+* Координатор отслеживает изменения дочерних узлов в **/<root>/n**
+** При добавлении узла создается новое событие
+** Координатор сохраняет для нового узла метаинформацию и текущую топологию кластера в
+ **/<root>/e/fj-<evtid>**
+* Все узлы кластера обрабатывают вход нового узла и обрабатывают сохраненные метаданные этого узла
+* Новый узел обрабатывает событие и по его идентификатору обрабатывает метаданные кластера из
+**/<root>/e/fj-<evtid>**
+* После обработки всеми узлами кластера события, координатор удаляет ненужные данные (
+**/<root>/e/fj-<evtid>** и **/<root>/e/jd/<guid>**)
+
+=== ZookeeperDiscovery. Схема
+graphviz::parts/zk_znode_structure.dot[format=png]
+
+=== ZookeeperDiscovery. Обработка выхода узла
+* При выходе узла из топологии, удаляется его znode **/<root>/n/guid-0000x**
+** При штатном выходе узел удалает ее сам а также создает стоп флаг +
+**/<root>/sf/<guid>-0000x** (с версии 2.9.1)
+** При аварийном выходе -- zookeeper.
+* Координатор получает нотификацию о удалении узла.
+** Если не найдет стоп-флаг -- создает событие о аварийном выходе узла.
+** Если найден -- создает событие о штатном выходе узла (с версии 2.9.1) и удаляет стоп-флаг.
+
+=== ZookeeperDiscovery. Схема
+graphviz::parts/zk_znode_structure.dot[format=png]
+
+=== ZookeeperDiscovery. Отправка сообщения
+* Узел сериализует сообщение и сохраняет его в znode **/<root>/ce/<node-guid>-0000x**
+* Координатор получает оповещение об добавлении новых дочерних узлах в **/<root>/ce**
+** Координатор проверяет новые сообщения и пропускает если сообщение уже обработано
+* Координатор добавляет новое событие и собирает подтверждения от других узлов
+* Если событие обработано всеми узлами, лишние данные удаляются координатором.
+
+=== ZookeeperDiscovery. Схема
+graphviz::parts/zk_znode_structure.dot[format=png]
+
+=== ZookeeperDiscovery. Отправка сообщения (Ack Message)
+* Если сообщения подразумевает т.н. Ack Message
+** Координатор после обработки исходного сообщения всеми узлами сериализует Ack Message +
+в **/<root>/ca/<evt-id>**
+** Координатор добавляет новое событие в **/<root>/e**
+* После обработки ack события другими узлами, координатор удаляет лишние данные.
+
+=== ZookeeperDiscovery. Схема
+graphviz::parts/zk_znode_structure.dot[format=png]
+
+

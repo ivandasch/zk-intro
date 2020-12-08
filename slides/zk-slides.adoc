@@ -20,70 +20,19 @@ include::parts/go.adoc[]
 == Рецепты ==
 include::parts/recipies.adoc[]
 
-== Ignite ZK Structure
-[graphviz, "zk-structure"]
-.Ignite nodes structure.
------
-digraph ZK {
-    graph [ dpi = 150 ];
-    node [shape="folder"];
-    root[label="<root>"]; n[label="n"]; e[label="e"];
-    fj[label="fj-<evt-id>"]
-    ce[label="ce"]; cp[label="cp"]; ca[label="ca"];
-    jd[label="jd"]; f[label="f-<id>"]; fr[label="fr-<id>"];
-    root -> n; root -> e; e -> fj; e -> f; e -> fr;
-    root -> ce; root -> cp; root -> ca;
-    root -> jd;
+== Кейс Apache Ignite ==
+include::parts/ignite.adoc[]
 
-}
------
-* **/n/<node-prefix>:<node-uuid>:<flags>|<seq-id>** -- nodes root, children `EPHEMERAL_SEQUENTIAL` -- denoting alive nodes.
-* **/jd/<node-prefix>:<node-uuid>[:<part-id>]** -- `PERSISTENT` joining node data
-* **/e** -- `PERSISTENT`, serialized `ZkDiscoveryEventsData` topology events.
-* **/e/fj-<evt-id>[<part-id>]** -- `PERSISTENT`, serialized grid data for joining node.
-* **/e/f-<fut-id>** -- base path for distributed future, children -- node result.
-* **/e/fr-<fut-id>** -- result of distributed future.
-* **/ce/<event-prefix>:<init-node-id>[:<par-cnt>]|<seq-id>** -- `PERSISTENT_SEQUENTIAL` custom event,
-if event message not splitted, save serialized message, otherwise see next step.
-* **/cp/<event-prefix>:<init-node-id>[:<par-cnt>]** -- `PERSISTENT` serialized custom event msg, if data splitted.
-* **/ca/<event-id>** -- ``PERSISTENT` serialized custom event ack msg (see `DiscoverySpiCustomMessage#ackMessage`).
-
-== Node join
-[plantuml, "server-join"]
------
-participant JoinedNode #lightGreen
-participant Coordinator #lightBlue
-participant Node
-database ZK
-
-JoinedNode --> ZK: ""PERSISTENT"" JoinedData in **/jd/<random-uuid>:<node-uuid>**
-JoinedNode --> ZK: ""EPHEMERAL_SEQUENTIAL"" in **/n/<random-uuid>:<node-uuid>:<flags>|<internalOrder>**
-JoinedNode --> ZK: Subscribe to **/n**, **/e** and **/ce**
-ZK --> Coordinator: Get notification about new ZNodes in **/n** and **/jd**
-ZK --> Coordinator: Get JoinedData from **/jd/<random-uuid>:<node-uuid>**
-Coordinator --> ZK: ""PERSISTENT"" GridData for JoinedNode in **/e/fj-<evt-id>**
-Coordinator --> ZK: ""PERSISTENT""  EventsData in **/e**
-ZK --> JoinedNode: Get notification about new ZNodes in **/e**, process GridData
-ZK --> Node: Get notification about new ZNodes in **/e**
-ZK --> Node: Get JoinedData from **/jd/<random-uuid>:<node-uuid>**, process joined data.
------
-== Send DiscoverySpiCustomMessage
-[plantuml, "custom-msg"]
------
-participant SenderNode #lightGreen
-participant Coordinator #lightBlue
-participant Node
-database ZK
-
-SenderNode --> ZK: ""PERSISTENT_SEQUENTIAL"" Event in **/ce/<evt-uuid>:<node-id>:<part-cnt>|<seq>**
-SenderNode --> ZK: ""PERSISTENT"" If parts > 1 in **/cp/<evt-uuid>:<node-id>:<part-cnt>**
-ZK --> Coordinator: Get notification about new events in **/ce**
-Coordinator --> ZK: Get custom events data.
-Coordinator --> ZK: ""PERSISTENT"" EventsData in **/e**
-ZK --> Node: Got notification about new Events in ZNode **/e**
-Node --> ZK: Update lastProcEvent in **/n/<random-uuid>:<node-uuid>:<flags>|<internalOrder>**
-ZK --> Coordinator: Notify about data change in **/n**. Coordinator count down acks.
-Coordinator --> ZK: Create ack event in **/e**
-Coordinator --> ZK: ""PERSISTENT"" Save ack msg data in **/ca**
-ZK --> Node: Notify about ack in **/ca**
------
+== Материалы
+[%conceal]
+[.columns]
+=== Книга
+[.column]
+image::zk_book_cover.jpg[width=50%]
+[.column]
+**ZooKeeper: Distributed Process Coordination** +
+Flavio Junqueira, Benjamin Reed
+[%conceal]
+=== Ссылки
+* https://ivandasch.github.io/zk-intro[] -- слайды
+* https://github.com/ivandasch/zk-intro[] -- код
