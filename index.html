@@ -154,13 +154,14 @@ TeX: { equationNumbers: { autoNumber: "none" } }
 link.rel = 'stylesheet';
 link.type = 'text/css';
 link.href = window.location.search.match( /print-pdf/gi ) ? "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/css/print/pdf.css" : "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/css/print/paper.css";
-document.getElementsByTagName( 'head' )[0].appendChild( link );</script><link rel="stylesheet" href="style.css"></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>Apache Zookeeper. Паттерны использования.</h1><p class="author"><small>Дащинский Иван</small></p></section><section><section id="_zookeeper_основы"><h2>Zookeeper основы.</h2></section><section id="_обозначения"><h2>Обозначения</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Эпоха&#8201;&#8212;&#8201;\(E := \{e_i : i \in N, e_i &lt; e_j \}\)</p></li><li><p>Лидер&#8201;&#8212;&#8201;\(\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i &lt; e_j \)</p></li><li><p>Идентификатор транзакции&#8201;&#8212;&#8201;\(z := &lt;e_i, j&gt;, j \in N \)</p></li><li><p>Транзакция&#8201;&#8212;&#8201;\(tx_{v,z} := \langle v, z \rangle\)</p></li><li><p>Кворум&#8201;&#8212;&#8201;\(Q \subseteq {s_1, s_2, ... s_N} : |Q| &gt; N/2\)
+document.getElementsByTagName( 'head' )[0].appendChild( link );</script><link rel="stylesheet" href="style.css"></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>Apache Zookeeper. Паттерны использования.</h1><p class="author"><small>Дащинский Иван</small></p></section><section id="_zookeeper_применение"><h2>Zookeeper применение</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Отслеживание и обнаружения сервисов (Service discovery)</p></li><li class="fragment"><p>Динамическая конфигурация</p></li><li class="fragment"><p>Выбор лидера</p></li><li class="fragment"><p>Распределенные блокировки, семафоры и проч.</p></li></ul></div></div></section>
+<section><section id="_zookeeper_основы"><h2>Zookeeper основы.</h2></section><section id="_обозначения"><h2>Обозначения</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Эпоха&#8201;&#8212;&#8201;\(E := \{e_i : i \in N, e_i &lt; e_j \}\)</p></li><li><p>Лидер&#8201;&#8212;&#8201;\(\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i &lt; e_j \)</p></li><li><p>Идентификатор транзакции&#8201;&#8212;&#8201;\(z := &lt;e_i, j&gt;, j \in N \)</p></li><li><p>Транзакция&#8201;&#8212;&#8201;\(tx_{v,z} := \langle v, z \rangle\)</p></li><li><p>Кворум&#8201;&#8212;&#8201;\(Q \subseteq {s_1, s_2, ... s_N} : |Q| &gt; N/2\)
 Транзакции распространяются лидером и фиксируются серверами.</p></li></ol></div></div></section><section id="_strong_leadership"><h2>Strong leadership</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>В любой момент времени может быть только <strong>один лидер</strong></p></li><li><p>Запросы на <strong>изменения</strong> данных перенаправляются и обрабатываются только <strong>лидером</strong></p></li><li><p>Запросы на изменения данных подтверждаются <strong>кворумом</strong></p></li><li><p>Перед подтверждением, транзакция записывается каждым сервером в
 транзакционный журнал на диск (<strong>transactional log</strong>)</p></li><li><p>Периодически происходит запись состояния реплицированной структуры данных в персистентную память
 (<strong>snapshot</strong>)</p></li></ol></div></div></section><section id="_диаграмма_состояний_сервера"><h2>Диаграмма состояний сервера</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_service_state.png" alt="zk service state"></div></div></section><section id="_zab_лидер_leader"><h2>ZAB. Лидер (LEADER)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>При получении запроса на изменение от клиента или последователя:</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Генерирует предложение (<code>PROPOSAL</code>) и отправляет последователям.</p></li><li><p>Синхронизирует данные в журнал транзакции и генерирует подтверждение от себя (<code>ACK</code>)</p></li></ol></div></li><li><p>При получении подтверждений (<code>ACK</code>) от кворума отсылает запрос <code>COMMIT</code> и изменяет у себя данные</p></li></ol></div>
 <div class="imageblock" style=""><img src="images/leader_zab.png" alt="leader zab"></div></div></section><section id="_zab_последователь_follower"><h2>ZAB. Последователь (FOLLOWER)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>При получении запроса на изменения от клиента:</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Перенаправляет запросы на изменения лидеру</p></li><li><p>При получении <code>COMMIT</code> меняет структуру данных</p></li></ol></div></li><li><p>При получении предложения от лидера (<code>PROPOSAL</code>):</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Синхронизирует данные в журнал транзакций</p></li><li><p>Шлет подтверждение лидеру (<code>ACK</code>)</p></li></ol></div></li></ol></div>
 <div class="imageblock" style=""><img src="images/follower_zab_1.png" alt="follower zab 1"></div>
-<div class="imageblock" style=""><img src="images/follower_zab_2.png" alt="follower zab 2"></div></div></section><section id="_выборы_лидера_leader_election"><h2>Выборы лидера (LEADER ELECTION)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Создаем свой голос \(v := \langle S_{id}, zxid\rangle\)</p></li><li><p>Отправляем голос другим серверам</p></li><li><p>При получении голоса \(v' := \langle S'_{id}, zxid'\rangle\) от другого сервера</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Если \(zxid &gt; zxid' \lor zxid = zxid', S_{id} &gt; S'_{id}\) то отправляем свой голос повторно</p></li><li><p>Иначе меняем свой голос на \(v'\)</p></li></ol></div></li><li><p>Продолжаем выборы пока не получим от всех серверов одинаковые голоса.</p></li></ol></div></div></section><section id="_zab_гарантии"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="paragraph"><p><strong>Обозначения</strong></p></div>
+<div class="imageblock" style=""><img src="images/follower_zab_2.png" alt="follower zab 2"></div></div></section><section id="_выборы_лидера_leader_election"><h2>Выборы лидера (LEADER ELECTION)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Создаем свой голос \(v := \langle S_{id}, zxid\rangle\)</p></li><li><p>Отправляем голос другим серверам</p></li><li><p>При получении голоса \(v' := \langle S'_{id}, zxid'\rangle\) от другого сервера</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Если \(zxid &gt; zxid' \lor zxid = zxid', S_{id} &gt; S'_{id}\) то отправляем свой голос повторно</p></li><li><p>Иначе меняем свой голос на \(v'\)</p></li></ol></div></li><li><p>Продолжаем выборы пока не получим от всех серверов одинаковые голоса.</p></li></ol></div></div></section><section id="_синхронизация"><h2>Синхронизация</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Последователи от нового лидера получают</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p><code>DIFF</code> или <code>TRUNC</code> если нужно применить разность или отбросить транзакции с определенной \(zxid\)</p></li><li><p><code>SNAP</code> если последователь сильно отстал и надо применить полный снимок данных с лидера</p></li></ol></div></li></ol></div></div></section><section id="_zab_гарантии"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="paragraph"><p><strong>Обозначения</strong></p></div>
 <div class="olist arabic"><ol class="arabic"><li><p>Эпоха&#8201;&#8212;&#8201;\(E := \{e_i : i \in N, e_i &lt; e_j \}\)</p></li><li><p>Лидер&#8201;&#8212;&#8201;\(\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i &lt; e_j \)</p></li><li><p>Идентификатор транзакции&#8201;&#8212;&#8201;\(z := &lt;e_i, j&gt;, j \in N \)</p></li><li><p>Транзакция&#8201;&#8212;&#8201;\(tx_{v,z} := \langle v, z \rangle\)
 Транзакции распространяются лидером и фиксируются серверами.</p></li></ol></div></div></section><section id="_zab_гарантии_2"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="ulist"><ul><li><p>Если на каком-то из серверов \(\langle v, z \rangle\) зафиксирована, то она была распространена
 каким-то из серверов</p></li><li><p>Если на каком-то из серверов \(\langle v, z \rangle\) зафиксирована до \(\langle v', z' \rangle\),
@@ -175,7 +176,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );</script><link re
 \(\langle v, z \rangle\) до \(\langle v', z' \rangle\)</p></li><li><p>Пусть \(\lambda_j \succ \lambda_i\), \(\lambda_i\) распространил \(\langle v, z \rangle\),
 \(\lambda_j\) распространяет \(\langle v', z' \rangle\) и какой-нибудь процесс зафиксировал
 \(\langle v, z \rangle\). Тогда \(\langle v, z \rangle\) обязана быть зафиксирована
-на \(\lambda_j\) до распространения \(\langle v', z' \rangle\)</p></li></ul></div></div></section><section id="_синхронизация"><h2>Синхронизация</h2></section><section id="_клиентские_сессии"><h2>Клиентские сессии</h2></section></section>
+на \(\lambda_j\) до распространения \(\langle v', z' \rangle\)</p></li></ul></div></div></section><section id="_клиентские_сессии"><h2>Клиентские сессии</h2><div class="slide-content"><div class="ulist"><ul><li><p>У клиентской сессии есть длительность (session timeout)</p></li><li><p>Клиентские сессии отслеживаются лидером</p></li><li><p>Клиентские сессии синхронизируются от последователя к лидеру каждые \(tick / 2\)</p></li><li><p>Клиент при отсутствии активности шлет пустые запросы на сервер, обновляя сессию.</p></li><li><p>Клиент при переподключении к тому же или другому серверу может восстановить сессию в течении session timeout.</p></li><li><p>Данные, привязанные к сессии очищаются лидером по инвалидации сессии.</p></li></ul></div></div></section></section>
 <section><section id="_клиентское_api"><h2>Клиентское API</h2></section><section id="_структура_данных"><h2>Структура данных</h2><div class="slide-content"><div class="paragraph"><p>Иерархическая древовидная структура данных:</p></div>
 <div class="ulist"><ul><li><p>Узел дерева содержит массив данных, пути к дочерним узлам, структуру <code>Stat</code></p></li><li><p>По факту представляет собой хэш таблицу узлов + служебные структуры данных</p></li></ul></div>
 <div class="paragraph"><p>Типы узлов:</p></div>
@@ -217,7 +218,8 @@ interface Watcher {
             Closed(7);
         }
     }
-}</code></pre></div></div></div></section></section>
+}</code></pre></div></div></div></section><section id="_отслеживание_изменений_watcher_2"><h2>Отслеживание изменений (Watcher)</h2><div class="slide-content"><div class="ulist"><ul><li><p>Изменения отправляются только один раз (требуется переподписка)</p></li><li><p>При переподключении клиента требуется переподписка</p></li><li><p>Гарантируется, что если \(tx \prec tx'\), то придет оповещение
+\(W_{tx}\), а не \(W_{tx'}\).</p></li></ul></div></div></section></section>
 <section><section id="_введение_в_go"><h2>"Введение" в GO</h2></section><section id="_базовые_понятия"><div class="slide-content"><div class="ulist"><ul><li><p>Сопрограммы (goroutines)</p><div class="ulist"><ul><li><p>Выполняются поверх нитей ОС</p></li><li><p>Имеют свой стек</p></li><li><p>Планировщик внутри runtime</p></li></ul></div></li><li><p>Каналы</p><div class="ulist"><ul><li><p>Hoare, C. A. R. (1985). Communicating Sequential Processes. Prentice Hall. ISBN 978-0-13-153289-2.</p></li></ul></div></li></ul></div></div></section><section id="_пример_1"><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">ch := make(chan string)
 go func() {
     for i := 0; i &lt; 10; i++ {
@@ -354,8 +356,8 @@ func (service *Service) loop() {
         }
     }
 }</code></pre></div></div></div></section><section id="_выбор_лидера_2"><h2>Выбор лидера</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func (service *Service) checkLeader(nodePath string) (bool, ev &lt;-chan zk.Event, error) {
-	for {
-		children, _, err := disco.client.Children(alivePath)
+    for {
+    	children, _, err := disco.client.Children(alivePath)
         order := parseSeq(nodePath)
         lowestOrder, previousOrderPath := process(children, order)
 
@@ -369,6 +371,7 @@ func (service *Service) loop() {
                 return false, ev, nil
             }
         }
+    }
 }</code></pre></div></div>
 <div class="colist arabic"><ol><li><p>&#8201;&#8212;&#8201;Вопрос залу&#8201;&#8212;&#8201;почему так?</p></li></ol></div></div></section><section id="_рецепты_это_сложно"><h2>Рецепты это сложно</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Что делать?</p></li><li class="fragment"><p>Используйте <a href="https://curator.apache.org/curator-framework">Apache Curator</a> (Если Java)</p></li><li class="fragment"><p>Если не Java, ищите готовые аналоги.</p></li></ul></div></div></section></section>
 <section><section id="_кейс_apache_ignite"><h2>Кейс Apache Ignite</h2></section><section id="_tcpdiscovery"><h2>TcpDiscovery</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/disco_ring.png" alt="disco ring"></div></div></section><section id="_tcpdiscovery_2" class="columns is-vcentered"><h2>TcpDiscovery</h2><div class="slide-content"><div class="ulist"><ul><li><p>Линейное время обхода.</p></li><li><p>Проблема на 1 узле&#8201;&#8212;&#8201;проблема на всем кластере.</p></li></ul></div>
@@ -384,7 +387,7 @@ func (service *Service) loop() {
 в <strong>/&lt;root&gt;/ca/&lt;evt-id&gt;</strong></p></li><li><p>Координатор добавляет новое событие в <strong>/&lt;root&gt;/e</strong></p></li></ul></div></li><li><p>После обработки ack события другими узлами, координатор удаляет лишние данные.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_6"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section></section>
 <section><section id="_материалы"><h2>Материалы</h2></section><section id="_книга" class="columns"><div class="slide-content"><div class="imageblock column" style=""><img src="images/zk_book_cover.jpg" alt="zk book cover" width="50%"></div>
 <div class="paragraph column"><p><strong>ZooKeeper: Distributed Process Coordination</strong><br>
-Flavio Junqueira, Benjamin Reed</p></div></div></section><section id="_ссылки"><div class="slide-content"><div class="ulist"><ul><li><p><a href="https://ivandasch.github.io/zk-intro" class="bare">https://ivandasch.github.io/zk-intro</a>&#8201;&#8212;&#8201;слайды</p></li><li><p><a href="https://github.com/ivandasch/zk-intro" class="bare">https://github.com/ivandasch/zk-intro</a>&#8201;&#8212;&#8201;код</p></li></ul></div></div></section></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/js/reveal.js"></script><script>Array.prototype.slice.call(document.querySelectorAll('.slides section')).forEach(function(slide) {
+Flavio Junqueira, Benjamin Reed</p></div></div></section><section id="_ссылки"><div class="slide-content"><div class="ulist"><ul><li><p><a href="https://ivandasch.github.io/zk-intro" class="bare">https://ivandasch.github.io/zk-intro</a>&#8201;&#8212;&#8201;слайды</p></li><li><p><a href="https://github.com/ivandasch/zk-intro" class="bare">https://github.com/ivandasch/zk-intro</a>&#8201;&#8212;&#8201;код</p></li><li><p><a href="https://curator.apache.org" class="bare">https://curator.apache.org</a>&#8201;&#8212;&#8201;Apache Curator</p></li><li><p><a href="https://zookeeper.apache.org" class="bare">https://zookeeper.apache.org</a></p></li></ul></div></div></section></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/js/reveal.js"></script><script>Array.prototype.slice.call(document.querySelectorAll('.slides section')).forEach(function(slide) {
   if (slide.getAttribute('data-background-color')) return;
   // user needs to explicitly say he wants CSS color to override otherwise we might break custom css or theme (#226)
   if (!(slide.classList.contains('canvas') || slide.classList.contains('background'))) return;
@@ -522,8 +525,8 @@ Reveal.initialize({
   // The "normal" size of the presentation, aspect ratio will be preserved
   // when the presentation is scaled to fit different resolutions. Can be
   // specified using percentage units.
-  width: 960,
-  height: 700,
+  width: 1400,
+  height: 800,
 
   // Factor of the display size that should remain empty around the content
   margin: 0.1,
@@ -602,13 +605,13 @@ function toArray(o) {
 }
 
 Reveal.addEventListener('slidechanged', function () {
-  layoutSlideContents(960, 700)
+  layoutSlideContents(1400, 800)
 });
 Reveal.addEventListener('ready', function () {
-  layoutSlideContents(960, 700)
+  layoutSlideContents(1400, 800)
 });
 Reveal.addEventListener('resize', function () {
-  layoutSlideContents(960, 700)
+  layoutSlideContents(1400, 800)
 });</script><link rel="stylesheet" href="github.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/highlight.min.js"></script>
 
