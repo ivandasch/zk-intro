@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/ztrue/tracerr"
 	"log"
 	"time"
 )
@@ -16,6 +17,7 @@ func main() {
 	for {
 		select {
 		case err := <-disco.ErrorEvents:
+			tracerr.PrintSourceColor(err)
 			panic(err)
 		case e := <-disco.DiscoEvents:
 			log.Printf("Got discovery event %v", e)

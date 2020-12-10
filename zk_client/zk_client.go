@@ -1,8 +1,8 @@
 package zk_client
 
 import (
-	"fmt"
 	"github.com/go-zookeeper/zk"
+	"github.com/ztrue/tracerr"
 	"log"
 	"strings"
 	"sync"
@@ -46,14 +46,13 @@ func NewZkClient(servers []string, sessionTimeout time.Duration) (client *ZkClie
 		retryTimeout:   sessionTimeout / numRetries,
 	}
 	if err != nil {
-		return
+		return nil, tracerr.Wrap(err)
 	}
 
 	client.connect(sessionTimeout, evt)
 
 	if c.State() != zk.StateHasSession {
-		err = fmt.Errorf("failed to connect within timeout %s", sessionTimeout.String())
-		return
+		return nil, tracerr.Errorf("failed to connect within timeout %s", sessionTimeout.String())
 	}
 
 	go client.loop(sessionTimeout, evt)
@@ -112,7 +111,7 @@ MAIN:
 			}
 			continue MAIN
 		case <-onSessionRestoreTimeout:
-			client.ErrorChan <- fmt.Errorf("failed to restore session whithin timeot %s", timeout.String())
+			client.ErrorChan <- tracerr.Errorf("failed to restore session whithin timeot %s", timeout.String())
 		case <-client.closeChan:
 			return
 		}
@@ -134,25 +133,31 @@ func (client *ZkClient) State() zk.State {
 	return client.conn.State()
 }
 
-func (client *ZkClient) SetOrCreateIfNotExists(path string, data []byte) (out string, err error) {
-	if ok, _, err := client.Exists(path); err == nil {
-		if !ok {
-			if _, err = client.Create(path, data, 0, zk.WorldACL(zk.PermAll)); err == nil {
-				out = path
-			}
-		} else {
-			if _, err = client.Set(path, data, -1); err == nil {
-				out = path
-			}
+func (client *ZkClient) SetOrCreateIfNotExists(path string, data []byte) (string, error) {
+	ok, _, err := client.Exists(path)
+	if err != nil {
+		return "", tracerr.Wrap(err)
+	}
+	if !ok {
+		if _, err = client.Create(path, data, 0, zk.WorldACL(zk.PermAll)); err != nil {
+			return "", tracerr.Wrap(err)
+		}
+	} else {
+		if _, err = client.Set(path, data, -1); err != nil {
+			return "", tracerr.Wrap(err)
 		}
 	}
-	return
+	return path, nil
 }
 
-func (client *ZkClient) MkDir(path string, parents bool) (err error) {
-	exists := false
-	if exists, _, err = client.Exists(path); err != nil || exists {
-		return
+func (client *ZkClient) MkDir(path string, parents bool) error {
+	exists, _, err := client.Exists(path)
+	if err != nil {
+		return tracerr.Wrap(err)
+	}
+
+	if exists {
+		return nil
 	}
 
 	if parents {
@@ -163,20 +168,22 @@ func (client *ZkClient) MkDir(path string, parents bool) (err error) {
 			}
 
 			buf = Join(buf, p)
-			if _, err = client.SetOrCreateIfNotExists(buf, nil); err != nil {
-				return
+			if _, err := client.SetOrCreateIfNotExists(buf, nil); err != nil {
+				return tracerr.Wrap(err)
 			}
 		}
 	} else {
-		_, err = client.SetOrCreateIfNotExists(path, nil)
+		if _, err := client.SetOrCreateIfNotExists(path, nil); err != nil {
+			return tracerr.Wrap(err)
+		}
 	}
-	return
+	return nil
 }
 
 func (client *ZkClient) Exists(path string) (ok bool, stat *zk.Stat, err error) {
 	client.retry(func() error {
 		ok, stat, err = client.conn.Exists(path)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -184,7 +191,7 @@ func (client *ZkClient) Exists(path string) (ok bool, stat *zk.Stat, err error) 
 func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt <-chan zk.Event, err error) {
 	client.retry(func() error {
 		ok, stat, evt, err = client.conn.ExistsW(path)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -192,7 +199,7 @@ func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt <-chan
 func (client *ZkClient) Children(path string) (children []string, stat *zk.Stat, err error) {
 	client.retry(func() error {
 		children, stat, err = client.conn.Children(path)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -200,7 +207,7 @@ func (client *ZkClient) Children(path string) (children []string, stat *zk.Stat,
 func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat, evt <-chan zk.Event, err error) {
 	client.retry(func() error {
 		children, stat, evt, err = client.conn.ChildrenW(path)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -208,7 +215,7 @@ func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat
 func (client *ZkClient) Get(path string) (data []byte, stat *zk.Stat, err error) {
 	client.retry(func() error {
 		data, stat, err = client.conn.Get(path)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -216,7 +223,7 @@ func (client *ZkClient) Get(path string) (data []byte, stat *zk.Stat, err error)
 func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt <-chan zk.Event, err error) {
 	client.retry(func() error {
 		data, stat, evt, err = client.conn.GetW(path)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -224,7 +231,7 @@ func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt <-cha
 func (client *ZkClient) Create(path string, data []byte, flags int32, acl []zk.ACL) (res string, err error) {
 	client.retry(func() error {
 		res, err = client.conn.Create(path, data, flags, acl)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -232,7 +239,7 @@ func (client *ZkClient) Create(path string, data []byte, flags int32, acl []zk.A
 func (client *ZkClient) Set(path string, data []byte, version int32) (stat *zk.Stat, err error) {
 	client.retry(func() error {
 		stat, err = client.conn.Set(path, data, version)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -240,7 +247,7 @@ func (client *ZkClient) Set(path string, data []byte, version int32) (stat *zk.S
 func (client *ZkClient) Delete(path string, version int32) (err error) {
 	client.retry(func() error {
 		err = client.conn.Delete(path, version)
-		return err
+		return tracerr.Wrap(err)
 	})
 	return
 }
@@ -251,7 +258,7 @@ func (client *ZkClient) retry(closure func() error) {
 	cnt := 0
 LOOP:
 	for cnt < numRetries {
-		err := closure()
+		err := tracerr.Unwrap(closure())
 
 		if err == zk.ErrSessionMoved || err == zk.ErrConnectionClosed {
 			select {

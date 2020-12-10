@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
+	"github.com/ztrue/tracerr"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +14,10 @@ type Topology []Node
 type Node struct {
 	NodeId    uuid.UUID
 	NodeOrder uint64
+}
+
+type NodeData struct {
+	LastProcessedEvent uint64
 }
 
 func (n Node) String() string {
@@ -31,16 +35,16 @@ func NewNode(node string) (Node, error) {
 	if len(parts) == 2 {
 		ord, err := strconv.ParseUint(parts[1], 10, 64)
 		if err != nil {
-			return Node{}, err
+			return Node{}, tracerr.Wrap(err)
 		}
 		id, err := uuid.Parse(parts[0])
 		if err != nil {
-			return Node{}, err
+			return Node{}, tracerr.Wrap(err)
 		}
 
 		return Node{NodeId: id, NodeOrder: ord}, nil
 	} else {
-		return Node{}, fmt.Errorf("unexpected input %s", node)
+		return Node{}, tracerr.Errorf("unexpected input %s", node)
 	}
 }
 
@@ -59,7 +63,7 @@ func (top *Topology) Len() int {
 func (top *Topology) EncodeMsgpack(enc *msgpack.Encoder) (err error) {
 	err = enc.EncodeArrayLen(top.Len())
 	if err != nil {
-		return
+		return tracerr.Wrap(err)
 	}
 
 	sort.Slice(*top, func(i, j int) bool {
@@ -69,11 +73,11 @@ func (top *Topology) EncodeMsgpack(enc *msgpack.Encoder) (err error) {
 	for _, n := range *top {
 		err = enc.EncodeUint64(n.NodeOrder)
 		if err != nil {
-			return
+			return tracerr.Wrap(err)
 		}
 		err = enc.Encode(n.NodeId)
 		if err != nil {
-			return
+			return tracerr.Wrap(err)
 		}
 	}
 	return
@@ -82,7 +86,7 @@ func (top *Topology) EncodeMsgpack(enc *msgpack.Encoder) (err error) {
 func (top *Topology) DecodeMsgpack(dec *msgpack.Decoder) error {
 	sz, err := dec.DecodeArrayLen()
 	if err != nil {
-		return err
+		return tracerr.Wrap(err)
 	}
 
 	*top = make([]Node, sz)
@@ -90,15 +94,31 @@ func (top *Topology) DecodeMsgpack(dec *msgpack.Decoder) error {
 	for i := 0; i < sz; i++ {
 		ord, err := dec.DecodeUint64()
 		if err != nil {
-			return err
+			return tracerr.Wrap(err)
 		}
 		var id uuid.UUID
 		err = dec.Decode(&id)
 		if err != nil {
-			return err
+			return tracerr.Wrap(err)
 		}
 		(*top)[i] = Node{NodeId: id, NodeOrder: ord}
 	}
 
+	return nil
+}
+
+func (nd *NodeData) EncodeMsgpack(enc *msgpack.Encoder) error {
+	if err := enc.EncodeUint64(nd.LastProcessedEvent); err != nil {
+		return tracerr.Wrap(err)
+	}
+	return nil
+}
+
+func (nd *NodeData) DecodeMsgpack(dec *msgpack.Decoder) error {
+	lastProcEvt, err := dec.DecodeUint64()
+	if err != nil {
+		return tracerr.Wrap(err)
+	}
+	nd.LastProcessedEvent = lastProcEvt
 	return nil
 }
