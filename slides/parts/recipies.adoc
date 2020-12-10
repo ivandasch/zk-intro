@@ -117,8 +117,8 @@ func (service *Service) loop() {
 [source, go]
 ----
 func (service *Service) checkLeader(nodePath string) (bool, ev <-chan zk.Event, error) {
-	for {
-		children, _, err := disco.client.Children(alivePath)
+    for {
+    	children, _, err := disco.client.Children(alivePath)
         order := parseSeq(nodePath)
         lowestOrder, previousOrderPath := process(children, order)
 
@@ -132,6 +132,7 @@ func (service *Service) checkLeader(nodePath string) (bool, ev <-chan zk.Event, 
                 return false, ev, nil
             }
         }
+    }
 }
 ----
 <1> -- Вопрос залу -- почему так?

@@ -4,9 +4,18 @@
 :customcss: style.css
 :source-highlighter: highlightjs
 :highlightjs-theme:  github.css
+:revealjs_width: 1400
+:revealjs_height: 800
 :author: Дащинский Иван
 
 = Apache Zookeeper. Паттерны использования.
+
+== Zookeeper применение
+[%step]
+* Отслеживание и обнаружения сервисов (Service discovery)
+* Динамическая конфигурация
+* Выбор лидера
+* Распределенные блокировки, семафоры и проч.
 
 == Zookeeper основы.
 include::parts/foundation.adoc[]
@@ -36,3 +45,5 @@ Flavio Junqueira, Benjamin Reed
 === Ссылки
 * https://ivandasch.github.io/zk-intro[] -- слайды
 * https://github.com/ivandasch/zk-intro[] -- код
+* https://curator.apache.org[] -- Apache Curator
+* https://zookeeper.apache.org[]
