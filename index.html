@@ -155,28 +155,14 @@ link.rel = 'stylesheet';
 link.type = 'text/css';
 link.href = window.location.search.match( /print-pdf/gi ) ? "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/css/print/pdf.css" : "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/css/print/paper.css";
 document.getElementsByTagName( 'head' )[0].appendChild( link );</script><link rel="stylesheet" href="style.css"></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>Apache Zookeeper. Паттерны использования.</h1><p class="author"><small>Дащинский Иван</small></p></section><section id="_zookeeper_применение"><h2>Zookeeper применение</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Отслеживание и обнаружения сервисов (Service discovery)</p></li><li class="fragment"><p>Динамическая конфигурация</p></li><li class="fragment"><p>Выбор лидера</p></li><li class="fragment"><p>Распределенные блокировки, семафоры и проч.</p></li></ul></div></div></section>
-<section><section id="_zookeeper_основы"><h2>Zookeeper основы.</h2></section><section id="_обозначения"><h2>Обозначения</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Эпоха&#8201;&#8212;&#8201;\(E := \{e_i : i \in N, e_i &lt; e_j \}\)</p></li><li><p>Лидер&#8201;&#8212;&#8201;\(\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i &lt; e_j \)</p></li><li><p>Идентификатор транзакции&#8201;&#8212;&#8201;\(z := &lt;e_i, j&gt;, j \in N \)</p></li><li><p>Транзакция&#8201;&#8212;&#8201;\(tx_{v,z} := \langle v, z \rangle\)</p></li><li><p>Кворум&#8201;&#8212;&#8201;\(Q \subseteq {s_1, s_2, ... s_N} : |Q| &gt; N/2\)
-Транзакции распространяются лидером и фиксируются серверами.</p></li></ol></div></div></section><section id="_strong_leadership"><h2>Strong leadership</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>В любой момент времени может быть только <strong>один лидер</strong></p></li><li><p>Запросы на <strong>изменения</strong> данных перенаправляются и обрабатываются только <strong>лидером</strong></p></li><li><p>Запросы на изменения данных подтверждаются <strong>кворумом</strong></p></li><li><p>Перед подтверждением, транзакция записывается каждым сервером в
-транзакционный журнал на диск (<strong>transactional log</strong>)</p></li><li><p>Периодически происходит запись состояния реплицированной структуры данных в персистентную память
-(<strong>snapshot</strong>)</p></li></ol></div></div></section><section id="_диаграмма_состояний_сервера"><h2>Диаграмма состояний сервера</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_service_state.png" alt="zk service state"></div></div></section><section id="_zab_лидер_leader"><h2>ZAB. Лидер (LEADER)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>При получении запроса на изменение от клиента или последователя:</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Генерирует предложение (<code>PROPOSAL</code>) и отправляет последователям.</p></li><li><p>Синхронизирует данные в журнал транзакции и генерирует подтверждение от себя (<code>ACK</code>)</p></li></ol></div></li><li><p>При получении подтверждений (<code>ACK</code>) от кворума отсылает запрос <code>COMMIT</code> и изменяет у себя данные</p></li></ol></div>
-<div class="imageblock" style=""><img src="images/leader_zab.png" alt="leader zab"></div></div></section><section id="_zab_последователь_follower"><h2>ZAB. Последователь (FOLLOWER)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>При получении запроса на изменения от клиента:</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Перенаправляет запросы на изменения лидеру</p></li><li><p>При получении <code>COMMIT</code> меняет структуру данных</p></li></ol></div></li><li><p>При получении предложения от лидера (<code>PROPOSAL</code>):</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Синхронизирует данные в журнал транзакций</p></li><li><p>Шлет подтверждение лидеру (<code>ACK</code>)</p></li></ol></div></li></ol></div>
+<section><section id="_zookeeper_основы"><h2>Zookeeper основы.</h2></section><section id="_обозначения"><h2>Обозначения</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li class="fragment"><p>Эпоха&#8201;&#8212;&#8201;\(E := \{e_i : i \in N, e_i &lt; e_j \}\)</p></li><li class="fragment"><p>Лидер&#8201;&#8212;&#8201;\(\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i &lt; e_j \)</p></li><li class="fragment"><p>Идентификатор транзакции&#8201;&#8212;&#8201;\(zxid := &lt;e_i, j&gt;, j \in N \)</p></li><li class="fragment"><p>Кворум&#8201;&#8212;&#8201;\(Q \subseteq {s_1, s_2, ... s_N} : |Q| &gt; N/2\)
+Транзакции распространяются лидером и фиксируются серверами.</p></li></ol></div></div></section><section id="_strong_leadership"><h2>Strong leadership</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li class="fragment"><p>В любой момент времени может быть только <strong>один лидер</strong></p></li><li class="fragment"><p>Запросы на <strong>изменения</strong> данных перенаправляются и обрабатываются только <strong>лидером</strong></p></li><li class="fragment"><p>Запросы на изменения данных подтверждаются <strong>кворумом</strong></p></li><li class="fragment"><p>Перед подтверждением, транзакция записывается каждым сервером в
+транзакционный журнал на диск (<strong>transactional log</strong>)</p></li><li class="fragment"><p>Периодически происходит запись состояния реплицированной структуры данных в персистентную память
+(<strong>snapshot</strong>)</p></li></ol></div></div></section><section id="_диаграмма_состояний_сервера"><h2>Диаграмма состояний сервера</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_service_state.png" alt="zk service state"></div></div></section><section id="_zab_лидер_leader"><h2>ZAB. Лидер (LEADER)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li class="fragment"><p>При получении запроса на изменение от клиента или последователя:</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Генерирует предложение (<code>PROPOSAL</code>) и отправляет последователям.</p></li><li><p>Синхронизирует данные в журнал транзакции и генерирует подтверждение от себя (<code>ACK</code>)</p></li></ol></div></li><li class="fragment"><p>При получении подтверждений (<code>ACK</code>) от кворума отсылает запрос <code>COMMIT</code> и изменяет у себя данные</p></li></ol></div>
+<div class="imageblock" style=""><img src="images/leader_zab.png" alt="leader zab"></div></div></section><section id="_zab_последователь_follower"><h2>ZAB. Последователь (FOLLOWER)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li class="fragment"><p>При получении запроса на изменения от клиента:</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Перенаправляет запросы на изменения лидеру</p></li><li><p>При получении <code>COMMIT</code> меняет структуру данных</p></li></ol></div></li><li class="fragment"><p>При получении предложения от лидера (<code>PROPOSAL</code>):</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Синхронизирует данные в журнал транзакций</p></li><li><p>Шлет подтверждение лидеру (<code>ACK</code>)</p></li></ol></div></li></ol></div>
 <div class="imageblock" style=""><img src="images/follower_zab_1.png" alt="follower zab 1"></div>
-<div class="imageblock" style=""><img src="images/follower_zab_2.png" alt="follower zab 2"></div></div></section><section id="_выборы_лидера_leader_election"><h2>Выборы лидера (LEADER ELECTION)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Создаем свой голос \(v := \langle S_{id}, zxid\rangle\)</p></li><li><p>Отправляем голос другим серверам</p></li><li><p>При получении голоса \(v' := \langle S'_{id}, zxid'\rangle\) от другого сервера</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Если \(zxid &gt; zxid' \lor zxid = zxid', S_{id} &gt; S'_{id}\) то отправляем свой голос повторно</p></li><li><p>Иначе меняем свой голос на \(v'\)</p></li></ol></div></li><li><p>Продолжаем выборы пока не получим от всех серверов одинаковые голоса.</p></li></ol></div></div></section><section id="_синхронизация"><h2>Синхронизация</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li><p>Последователи от нового лидера получают</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p><code>DIFF</code> или <code>TRUNC</code> если нужно применить разность или отбросить транзакции с определенной \(zxid\)</p></li><li><p><code>SNAP</code> если последователь сильно отстал и надо применить полный снимок данных с лидера</p></li></ol></div></li></ol></div></div></section><section id="_zab_гарантии"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="paragraph"><p><strong>Обозначения</strong></p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Эпоха&#8201;&#8212;&#8201;\(E := \{e_i : i \in N, e_i &lt; e_j \}\)</p></li><li><p>Лидер&#8201;&#8212;&#8201;\(\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i &lt; e_j \)</p></li><li><p>Идентификатор транзакции&#8201;&#8212;&#8201;\(z := &lt;e_i, j&gt;, j \in N \)</p></li><li><p>Транзакция&#8201;&#8212;&#8201;\(tx_{v,z} := \langle v, z \rangle\)
-Транзакции распространяются лидером и фиксируются серверами.</p></li></ol></div></div></section><section id="_zab_гарантии_2"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="ulist"><ul><li><p>Если на каком-то из серверов \(\langle v, z \rangle\) зафиксирована, то она была распространена
-каким-то из серверов</p></li><li><p>Если на каком-то из серверов \(\langle v, z \rangle\) зафиксирована до \(\langle v', z' \rangle\),
-то на любом сервере , на котором зафиксирована \(\langle v', z' \rangle\),
-обязана быть зафиксирована \(\langle v, z \rangle\) до \(\langle v', z' \rangle\)</p></li><li><p>Если на каком-то сервере \(s\) зафиксирована \(\langle v, z \rangle\), а на
-\(s'\) зафиксирована \(\langle v', z' \rangle\), то либо на \(s\) зафиксирована
-также \(\langle v', z' \rangle\), либо на \(s'\) зафиксирована \(\langle v, z \rangle\)</p></li></ul></div></div></section><section id="_zab_гарантии_3"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="ulist"><ul><li><p>Если \(\lambda_i\) распространил \(\langle v, z \rangle\) до \(\langle v', z' \rangle\),
-то сервер, зафиксировавший \(\langle v', z' \rangle\), обязан зафиксировать \(\langle v, z \rangle\)
-до \(\langle v', z' \rangle\)</p></li><li><p>Пусть \(\lambda_j \succ \lambda_i\), \(\lambda_i\) распространил \(\langle v, z \rangle\),
-\(\lambda_j\) распространил \(\langle v', z' \rangle\). Тогда если какой-нибудь сервер зафиксировал
-\(\langle v, z \rangle\) и \(\langle v', z' \rangle\), то он обязан зафиксировать
-\(\langle v, z \rangle\) до \(\langle v', z' \rangle\)</p></li><li><p>Пусть \(\lambda_j \succ \lambda_i\), \(\lambda_i\) распространил \(\langle v, z \rangle\),
-\(\lambda_j\) распространяет \(\langle v', z' \rangle\) и какой-нибудь процесс зафиксировал
-\(\langle v, z \rangle\). Тогда \(\langle v, z \rangle\) обязана быть зафиксирована
-на \(\lambda_j\) до распространения \(\langle v', z' \rangle\)</p></li></ul></div></div></section><section id="_клиентские_сессии"><h2>Клиентские сессии</h2><div class="slide-content"><div class="ulist"><ul><li><p>У клиентской сессии есть длительность (session timeout)</p></li><li><p>Клиентские сессии отслеживаются лидером</p></li><li><p>Клиентские сессии синхронизируются от последователя к лидеру каждые \(tick / 2\)</p></li><li><p>Клиент при отсутствии активности шлет пустые запросы на сервер, обновляя сессию.</p></li><li><p>Клиент при переподключении к тому же или другому серверу может восстановить сессию в течении session timeout.</p></li><li><p>Данные, привязанные к сессии очищаются лидером по инвалидации сессии.</p></li></ul></div></div></section></section>
+<div class="imageblock" style=""><img src="images/follower_zab_2.png" alt="follower zab 2"></div></div></section><section id="_выборы_лидера_leader_election"><h2>Выборы лидера (LEADER ELECTION)</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li class="fragment"><p>Создаем свой голос \(v := \langle S_{id}, zxid\rangle\)</p></li><li class="fragment"><p>Отправляем голос другим серверам</p></li><li class="fragment"><p>При получении голоса \(v' := \langle S'_{id}, zxid'\rangle\) от другого сервера</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p>Если \(zxid &gt; zxid' \lor zxid = zxid', S_{id} &gt; S'_{id}\) то отправляем свой голос повторно</p></li><li><p>Иначе меняем свой голос на \(v'\)</p></li></ol></div></li><li class="fragment"><p>Продолжаем выборы пока не получим от всех серверов одинаковые голоса.</p></li></ol></div></div></section><section id="_синхронизация"><h2>Синхронизация</h2><div class="slide-content"><div class="olist arabic"><ol class="arabic"><li class="fragment"><p>Последователи от нового лидера получают</p><div class="olist loweralpha"><ol class="loweralpha" type="a"><li><p><code>DIFF</code> или <code>TRUNC</code> если нужно применить разность или отбросить транзакции с определенной \(zxid\)</p></li><li><p><code>SNAP</code> если последователь сильно отстал и надо применить полный снимок данных с лидера</p></li></ol></div></li></ol></div></div></section><section id="_zab_гарантии"><h2>ZAB (Гарантии)</h2><div class="slide-content"><div class="ulist"><ul><li><p>Если \(zxid &lt; zxid'\) и на каком-то произвольном сервере зафиксирована \(tx_{zxid'}\), то на этом
+сервере зафиксирована \(tx_{zxid}\), причем \(tx_{zxid} \prec tx_{zxid'}\).</p></li></ul></div></div></section><section id="_клиентские_сессии"><h2>Клиентские сессии</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>У клиентской сессии есть длительность (session timeout)</p></li><li class="fragment"><p>Клиентские сессии отслеживаются лидером</p></li><li class="fragment"><p>Клиентские сессии синхронизируются от последователя к лидеру каждые \(tick / 2\)</p></li><li class="fragment"><p>Клиент при отсутствии активности шлет пустые запросы на сервер, обновляя сессию.</p></li><li class="fragment"><p>Клиент при переподключении к тому же или другому серверу может восстановить сессию в течении session timeout.</p></li><li class="fragment"><p>Данные, привязанные к сессии очищаются лидером по инвалидации сессии.</p></li></ul></div></div></section></section>
 <section><section id="_клиентское_api"><h2>Клиентское API</h2></section><section id="_структура_данных"><h2>Структура данных</h2><div class="slide-content"><div class="paragraph"><p>Иерархическая древовидная структура данных:</p></div>
 <div class="ulist"><ul><li><p>Узел дерева содержит массив данных, пути к дочерним узлам, структуру <code>Stat</code></p></li><li><p>По факту представляет собой хэш таблицу узлов + служебные структуры данных</p></li></ul></div>
 <div class="paragraph"><p>Типы узлов:</p></div>
@@ -223,31 +209,36 @@ interface Watcher {
 <section><section id="_введение_в_go"><h2>"Введение" в GO</h2></section><section id="_базовые_понятия"><div class="slide-content"><div class="ulist"><ul><li><p>Сопрограммы (goroutines)</p><div class="ulist"><ul><li><p>Выполняются поверх нитей ОС</p></li><li><p>Имеют свой стек</p></li><li><p>Планировщик внутри runtime</p></li></ul></div></li><li><p>Каналы</p><div class="ulist"><ul><li><p>Hoare, C. A. R. (1985). Communicating Sequential Processes. Prentice Hall. ISBN 978-0-13-153289-2.</p></li></ul></div></li></ul></div></div></section><section id="_пример_1"><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">ch := make(chan string)
 go func() {
     for i := 0; i &lt; 10; i++ {
-        ch &lt;- strconv.Itoa(i) <b>(2)</b>
+        ch &lt;- strconv.Itoa(i) // Отправляем данные в канал
         time.Sleep(1 * time.Second)
     }
-}() <b>(1)</b>
+}() // Запускаем анонимную горутину
 
 for {
     select { <b>(3)</b>
-        case i := &lt;- ch: <b>(4)</b>
+        case i := &lt;- ch: // Читаем данные из канала
             fmt.Println("Got number: %s", i)
-        case &lt;- closeCh: <b>(5)</b>
+            continue
+        case &lt;- closeCh:
         	return
     }
-}</code></pre></div></div></div></section><section id="_api_go_style"><h2>API GO-style</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func (client *ZkClient) Exists(path string) (ok bool, stat *zk.Stat, err error)
-func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt &lt;-chan zk.Event, err error) <b>(1)</b>
+}</code></pre></div></div></div></section><section id="_api_go_style"><h2>API GO-style</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">// Запросы на чтение
+func (client *ZkClient) Exists(path string) (ok bool, stat *zk.Stat, err error)
 func (client *ZkClient) Get(path string) (data []byte, stat *zk.Stat, err error)
-func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt &lt;-chan zk.Event, err error) <b>(1)</b>
 func (client *ZkClient) Children(path string) (children []string, stat *zk.Stat, err error)
-func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat, evt &lt;-chan zk.Event, err error)<b>(1)</b>
 
+// Запросы с подпиской.
+func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt &lt;-chan zk.Event, err error)
+func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt &lt;-chan zk.Event, err error)
+func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat, evt &lt;-chan zk.Event, err error)
+
+// Запросы на изменение
 func (client *ZkClient) Create(path string, data []byte, flags int32, acl []zk.ACL) (res string, err error)
 func (client *ZkClient) Set(path string, data []byte, version int32) (stat *zk.Stat, err error)
-func (client *ZkClient) Delete(path string, version int32) (err error)</code></pre></div></div>
-<div class="colist arabic"><ol><li><p>&#8201;&#8212;&#8201;Вместо коллбека&#8201;&#8212;&#8201;используется канал для входящих событий</p></li></ol></div></div></section><section id="_получение_данных_и_подписка"><h2>Получение данных и подписка</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">for {
-    data, _, evt, err := cli.GetW(path)
-    if err == zk.ErrNoNode {
+func (client *ZkClient) Delete(path string, version int32) (err error)</code></pre></div></div></div></section><section id="_получение_данных_и_подписка"><h2>Получение данных и подписка</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">path := "/some_node"
+for {
+    data, _, evt, err := cli.GetW(path) // Получение данных из /some_node с подпиской
+    if err == zk.ErrNoNode { // Если /some_node не существует, продолжим цикл сначала
         continue
     } else if err != nil {
         panic(err)
@@ -255,73 +246,66 @@ func (client *ZkClient) Delete(path string, version int32) (err error)</code></p
     fmt.Printf("Got new value %s", string(data))
     select {
     case e := &lt;-evt:
-        case e := &lt;-evt:
         if e.Type != zk.EventNodeDataChanged {
             fmt.Printf("Unexpected type of event %s\n", e.Type)
         }
-        continue <b>(1)</b>
+        continue //  Переходим в начало цикла.
     }
-}</code></pre></div></div>
-<div class="colist arabic"><ol><li><p>&#8201;&#8212;&#8201;Переходим в начало цикла и переподписываемся.</p></li></ol></div></div></section></section>
+}</code></pre></div></div></div></section></section>
 <section><section id="_рецепты"><h2>Рецепты</h2></section><section id="_мьютекс_naive"><h2>Мьютекс (naive)</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func (l *Lock) Lock() error {
-    path := l.CreateLockNode() //-lock/guid-00000x
-    order := parseSeq(path)
+    path := l.CreateLockNode() //Создаем EPHEMERAL_SEQUENTIAL -lock/guid-00000x
+    order := parseSeq(path) // Определяем номер из path znode, созданной на пред. шаге
 
     for {
-        children, _, evt, _ := l.zk_client.ChildrenW(l.path)
+        children, _, evt, _ := l.zk_client.ChildrenW(l.path) // Берем дочерние узлы и ставим watch (канал evt)
         lowestOrder := process(children)
 
-        if order == lowestOrder {
+        if order == lowestOrder { // Если у нашего узла самый низкий номер, мы захватили лок
             break
         }
 
-        ev := &lt;-evt
+        ev := &lt;-evt // Приостанавливаем сопрограмму пока не придет событие из канала evt
         if ev.Err != nil {
             return ev.Err
         }
     }
-
-    l.order = order
     l.lock = path
     return nil
 }
 
 func (l *Lock) Unlock() {
-	_ = l.zk_client.Delete(l.lock, -1)
+    _ = l.zk_client.Delete(l.lock, -1) // Отпуская мьютекс, просто удалем znode
 }</code></pre></div></div></div></section><section id="_что_не_так"><h2>Что не так?</h2><div class="slide-content"><div class="imageblock text-center" style=""><img src="images/thundering_herd.png" alt="thundering herd" width="50%"></div><div class="title">Figure 1. Thundering herd problem</div></div></section><section id="_мьютекс"><h2>Мьютекс</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func (l *Lock) Lock() error {
     path := l.CreateLockNode()
     order := parseSeq(path)
 
     for {
-        children, _, _ := l.zk_client.Children(l.path) <b>(1)</b>
+        children, _, _ := l.zk_client.Children(l.path) // Берем дочерние узлы без отслеживания
         lowestOrder, prevOrderPath := process(children, order)
 
         if order == lowestOrder {
             break
         }
 
-        exists, _, ch, err := l.zk_client.ExistsW(l.path + "/" + prevOrderPath) <b>(2)</b>
+        exists, _, ch, err := l.zk_client.ExistsW(l.path + "/" + prevOrderPath) // Берем предыдущую по порядку znode
         if err != nil {
             return err
-        } else if !exists {
+        } else if !exists { // Если она была удалена, переходим в начало цикла
             continue
         }
 
-        ev := &lt;-ch
+        ev := &lt;-ch // Иначе приостанавливаем сопрограмму пока не придет событие в канал
         if ev.Err != nil {
             return ev.Err
         }
     }
-
-    l.order = order
     l.lock = path
     return nil
-}</code></pre></div></div>
-<div class="colist arabic"><ol><li><p>&#8201;&#8212;&#8201;Берем дочерние узлы без отслеживания</p></li><li><p>&#8201;&#8212;&#8201;Отслеживаем предыдущий узел</p></li></ol></div></div></section><section id="_выбор_лидера"><h2>Выбор лидера</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func NewService() *Service {
+}</code></pre></div></div></div></section><section id="_выбор_лидера"><h2>Выбор лидера</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func NewService() *Service {
     service := &amp;Service{
         ....
     }
-    service.localNodePath = createServiceNode // EPHEMERAL_SEQUENTIAL, _services/guid-0000x
+    service.localNodePath = createServiceNode() // Создаем znode EPHEMERAL_SEQUENTIAL с именем _services/guid-0000x
     go loop()
     return &amp;service
 }
@@ -329,21 +313,21 @@ func (l *Lock) Unlock() {
 func (service *Service) loop() {
     LOOP:
     for {
-        isLeader, changeLeaderChan, err := service.checkLeader(service.localNodePath)
+        isLeader, changeLeaderChan, err := service.checkLeader(service.localNodePath) // Проверяем кто сейчас лидер.
 
         if isLeader {
-            go service.lead()
+            go service.lead() // Если текущий сервис лидер, запускаем сопрограмму lead
         } else {
-            go service.follow()
+            go service.follow() // Иначе сопрограмму follow
         }
 
         for {
             select {
-            case e := &lt;-changeLeaderChan:
+            case e := &lt;-changeLeaderChan: // Отслеживаем события из канала, на который создали ранее
                 switch e.Type {
-                case zk.EventNodeDeleted:
+                case zk.EventNodeDeleted: // Если отслеживаемая znode была удалена, переходим в начало цикла
                     continue LOOP
-                default:
+                default: // Иначе переподписываемся (заодно проверяем что znode не была удалена после события)
                     var exists bool
                     exists, _, changeLeaderChan, _ = service.zk_client.ExistsW(e.Path)
 
@@ -357,14 +341,14 @@ func (service *Service) loop() {
     }
 }</code></pre></div></div></div></section><section id="_выбор_лидера_2"><h2>Выбор лидера</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="go" class="language-go hljs" data-noescape="true">func (service *Service) checkLeader(nodePath string) (bool, ev &lt;-chan zk.Event, error) {
     for {
-    	children, _, err := disco.client.Children(alivePath)
+    	children, _, err := disco.client.Children(alivePath) // Берем все дочернии узлы без отслеживания
         order := parseSeq(nodePath)
         lowestOrder, previousOrderPath := process(children, order)
 
-        if lowestOrder == order {
+        if lowestOrder == order { // Если у текущего процесса самый низкий порядок, он лидер
             return true, nil, nil
         } else {
-            exists, _, ev, err = service.zk_client.ExistsW(previousOrderPath) <b>(1)</b>
+            exists, _, ev, err = service.zk_client.ExistsW(previousOrderPath) // Иначе отслеживаем предыдущий по порядку
             if !exists {
                 continue
             } else {
@@ -372,19 +356,18 @@ func (service *Service) loop() {
             }
         }
     }
-}</code></pre></div></div>
-<div class="colist arabic"><ol><li><p>&#8201;&#8212;&#8201;Вопрос залу&#8201;&#8212;&#8201;почему так?</p></li></ol></div></div></section><section id="_рецепты_это_сложно"><h2>Рецепты это сложно</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Что делать?</p></li><li class="fragment"><p>Используйте <a href="https://curator.apache.org/curator-framework">Apache Curator</a> (Если Java)</p></li><li class="fragment"><p>Если не Java, ищите готовые аналоги.</p></li></ul></div></div></section></section>
+}</code></pre></div></div></div></section><section id="_рецепты_это_сложно"><h2>Рецепты это сложно</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Что делать?</p></li><li class="fragment"><p>Используйте <a href="https://curator.apache.org/curator-framework">Apache Curator</a> (Если Java)</p></li><li class="fragment"><p>Если не Java, ищите готовые аналоги.</p></li></ul></div></div></section></section>
 <section><section id="_кейс_apache_ignite"><h2>Кейс Apache Ignite</h2></section><section id="_tcpdiscovery"><h2>TcpDiscovery</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/disco_ring.png" alt="disco ring"></div></div></section><section id="_tcpdiscovery_2" class="columns is-vcentered"><h2>TcpDiscovery</h2><div class="slide-content"><div class="ulist"><ul><li><p>Линейное время обхода.</p></li><li><p>Проблема на 1 узле&#8201;&#8212;&#8201;проблема на всем кластере.</p></li></ul></div>
 <div class="imageblock column" style=""><img src="images/disco_ring_1_trouble.png" alt="disco ring 1 trouble"></div>
 <div class="imageblock column" style=""><img src="images/disco_ring_all_trouble.png" alt="disco ring all trouble"></div></div></section><section id="_гарантии_discovery_в_ignite"><h2>Гарантии Discovery в Ignite</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>В один момент времени один лидер (координатор)</p></li><li class="fragment"><p>Упорядоченность событий</p></li><li class="fragment"><p>Гарантируется доставка сообщений до всех узлов кластера</p></li></ul></div></div></section><section id="_zookeeperdisсovery" class="columns is-vcentered"><h2>ZookeeperDisсovery</h2><div class="slide-content"><div class="ulist columnt is-full"><ul><li><p>Оповещаются узлы независимо.</p></li><li><p>Проблемы на 1 узле другие узлы не затрагивает.</p></li></ul></div>
 <div class="imageblock column" style=""><img src="images/zk_ignite_cluster.png" alt="zk ignite cluster"></div>
-<div class="imageblock column" style=""><img src="images/zk_ignite_cluster_trouble.png" alt="zk ignite cluster trouble"></div></div></section><section id="_zookeeperdiscovery_схема"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section><section id="_zookeeperdiscovery"><h2>ZookeeperDiscovery</h2><div class="slide-content"><div class="ulist"><ul><li><p>Каждый узел регистрирует <strong>/&lt;root&gt;/n/guid-0000x</strong> (<code>EPHEMERAL_SEQUENTIAL</code>)</p></li><li><p>Серверные узлы участвуют в выборе лидера(координатора) (см. рецепт <code><em>Leader Election</em></code>)</p></li></ul></div></div></section><section id="_zookeeperdiscovery_события"><h2>ZookeeperDiscovery. События</h2><div class="slide-content"><div class="ulist"><ul><li><p>Все события генерирует только координатор</p></li><li><p>События сохраняются в <strong>/&lt;root&gt;/e</strong> в виде</p><div class="ulist"><ul><li><p>Упорядоченный список событий</p></li><li><p>Версия топологии</p></li><li><p>Номер последнего события и номер последнего сообщения</p></li></ul></div></li><li><p>Остальные узлы кластера отслеживают изменения в этой znode.</p></li><li><p>По обработке события узлы сохраняют номер последнего обработанного события в <strong>/&lt;root&gt;/n/guid-0000x</strong></p></li><li><p>Координатор отслеживает изменения данных в каждой znode в <strong>/&lt;root&gt;/n</strong> и удаляет из списка
-события, которые уже обработаны всеми узлами кластера.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_2"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section><section id="_zookeeperdiscovery_вход_узла_в_топологию"><h2>ZookeeperDiscovery. Вход узла в топологию.</h2><div class="slide-content"><div class="ulist"><ul><li><p>При входе узла, узел создает</p><div class="ulist"><ul><li><p>Собственную znode <strong>/&lt;root&gt;/n/guid-0000x</strong> (<code>EPHEMERAL_SEQUENTIAL</code>)</p></li><li><p>Метаданные, которыми узел делится с кластером <strong>/&lt;root&gt;/jd/&lt;guid&gt;</strong></p></li></ul></div></li><li><p>Координатор отслеживает изменения дочерних узлов в <strong>/&lt;root&gt;/n</strong></p><div class="ulist"><ul><li><p>При добавлении узла создается новое событие</p></li><li><p>Координатор сохраняет для нового узла метаинформацию и текущую топологию кластера в
-<strong>/&lt;root&gt;/e/fj-&lt;evtid&gt;</strong></p></li></ul></div></li><li><p>Все узлы кластера обрабатывают вход нового узла и обрабатывают сохраненные метаданные этого узла</p></li><li><p>Новый узел обрабатывает событие и по его идентификатору обрабатывает метаданные кластера из
-<strong>/&lt;root&gt;/e/fj-&lt;evtid&gt;</strong></p></li><li><p>После обработки всеми узлами кластера события, координатор удаляет ненужные данные (
-<strong>/&lt;root&gt;/e/fj-&lt;evtid&gt;</strong> и <strong>/&lt;root&gt;/e/jd/&lt;guid&gt;</strong>)</p></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_3"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section><section id="_zookeeperdiscovery_обработка_выхода_узла"><h2>ZookeeperDiscovery. Обработка выхода узла</h2><div class="slide-content"><div class="ulist"><ul><li><p>При выходе узла из топологии, удаляется его znode <strong>/&lt;root&gt;/n/guid-0000x</strong></p><div class="ulist"><ul><li><p>При штатном выходе узел удалает ее сам а также создает стоп флаг<br>
-<strong>/&lt;root&gt;/sf/&lt;guid&gt;-0000x</strong> (с версии 2.9.1)</p></li><li><p>При аварийном выходе&#8201;&#8212;&#8201;zookeeper.</p></li></ul></div></li><li><p>Координатор получает нотификацию о удалении узла.</p><div class="ulist"><ul><li><p>Если не найдет стоп-флаг&#8201;&#8212;&#8201;создает событие о аварийном выходе узла.</p></li><li><p>Если найден&#8201;&#8212;&#8201;создает событие о штатном выходе узла (с версии 2.9.1) и удаляет стоп-флаг.</p></li></ul></div></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_4"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section><section id="_zookeeperdiscovery_отправка_сообщения"><h2>ZookeeperDiscovery. Отправка сообщения</h2><div class="slide-content"><div class="ulist"><ul><li><p>Узел сериализует сообщение и сохраняет его в znode <strong>/&lt;root&gt;/ce/&lt;node-guid&gt;-0000x</strong></p></li><li><p>Координатор получает оповещение об добавлении новых дочерних узлах в <strong>/&lt;root&gt;/ce</strong></p><div class="ulist"><ul><li><p>Координатор проверяет новые сообщения и пропускает если сообщение уже обработано</p></li></ul></div></li><li><p>Координатор добавляет новое событие и собирает подтверждения от других узлов</p></li><li><p>Если событие обработано всеми узлами, лишние данные удаляются координатором.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_5"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section><section id="_zookeeperdiscovery_отправка_сообщения_ack_message"><h2>ZookeeperDiscovery. Отправка сообщения (Ack Message)</h2><div class="slide-content"><div class="ulist"><ul><li><p>Если сообщения подразумевает т.н. Ack Message</p><div class="ulist"><ul><li><p>Координатор после обработки исходного сообщения всеми узлами сериализует Ack Message<br>
-в <strong>/&lt;root&gt;/ca/&lt;evt-id&gt;</strong></p></li><li><p>Координатор добавляет новое событие в <strong>/&lt;root&gt;/e</strong></p></li></ul></div></li><li><p>После обработки ack события другими узлами, координатор удаляет лишние данные.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_6"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section></section>
+<div class="imageblock column" style=""><img src="images/zk_ignite_cluster_trouble.png" alt="zk ignite cluster trouble"></div></div></section><section id="_zookeeperdiscovery_схема"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section><section id="_zookeeperdiscovery"><h2>ZookeeperDiscovery</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Каждый узел регистрирует <strong>/&lt;root&gt;/n/guid-0000x</strong> (<code>EPHEMERAL_SEQUENTIAL</code>)</p></li><li class="fragment"><p>Серверные узлы участвуют в выборе лидера(координатора) (см. рецепт <code><em>Leader Election</em></code>)</p></li></ul></div></div></section><section id="_zookeeperdiscovery_события"><h2>ZookeeperDiscovery. События</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Все события генерирует только координатор</p></li><li class="fragment"><p>События сохраняются в <strong>/&lt;root&gt;/e</strong> в виде</p><div class="ulist"><ul><li><p>Упорядоченный список событий</p></li><li><p>Версия топологии</p></li><li><p>Номер последнего события и номер последнего сообщения</p></li></ul></div></li><li class="fragment"><p>Остальные узлы кластера отслеживают изменения в этой znode.</p></li><li class="fragment"><p>По обработке события узлы сохраняют номер последнего обработанного события в <strong>/&lt;root&gt;/n/guid-0000x</strong></p></li><li class="fragment"><p>Координатор отслеживает изменения данных в каждой znode в <strong>/&lt;root&gt;/n</strong> и удаляет из списка
+события, которые уже обработаны всеми узлами кластера.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_вход_узла_в_топологию"><h2>ZookeeperDiscovery. Вход узла в топологию.</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>При входе узла, узел создает</p><div class="ulist"><ul><li><p>Собственную znode <strong>/&lt;root&gt;/n/guid-0000x</strong> (<code>EPHEMERAL_SEQUENTIAL</code>)</p></li><li><p>Метаданные, которыми узел делится с кластером <strong>/&lt;root&gt;/jd/&lt;guid&gt;</strong></p></li></ul></div></li><li class="fragment"><p>Координатор отслеживает изменения дочерних узлов в <strong>/&lt;root&gt;/n</strong></p><div class="ulist"><ul><li><p>При добавлении узла создается новое событие</p></li><li><p>Координатор сохраняет для нового узла метаинформацию и текущую топологию кластера в
+<strong>/&lt;root&gt;/e/fj-&lt;evtid&gt;</strong></p></li></ul></div></li><li class="fragment"><p>Все узлы кластера обрабатывают вход нового узла и обрабатывают сохраненные метаданные этого узла</p></li><li class="fragment"><p>Новый узел обрабатывает событие и по его идентификатору обрабатывает метаданные кластера из
+<strong>/&lt;root&gt;/e/fj-&lt;evtid&gt;</strong></p></li><li class="fragment"><p>После обработки всеми узлами кластера события, координатор удаляет ненужные данные (
+<strong>/&lt;root&gt;/e/fj-&lt;evtid&gt;</strong> и <strong>/&lt;root&gt;/e/jd/&lt;guid&gt;</strong>)</p></li></ul></div></div></section><section id="_zookeeperdiscovery_обработка_выхода_узла"><h2>ZookeeperDiscovery. Обработка выхода узла</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>При выходе узла из топологии, удаляется его znode <strong>/&lt;root&gt;/n/guid-0000x</strong></p><div class="ulist"><ul><li><p>При штатном выходе узел удалает ее сам а также создает стоп флаг<br>
+<strong>/&lt;root&gt;/sf/&lt;guid&gt;-0000x</strong> (с версии 2.9.1)</p></li><li><p>При аварийном выходе&#8201;&#8212;&#8201;zookeeper.</p></li></ul></div></li><li class="fragment"><p>Координатор получает нотификацию о удалении узла.</p><div class="ulist"><ul><li><p>Если не найдет стоп-флаг&#8201;&#8212;&#8201;создает событие о аварийном выходе узла.</p></li><li><p>Если найден&#8201;&#8212;&#8201;создает событие о штатном выходе узла (с версии 2.9.1) и удаляет стоп-флаг.</p></li></ul></div></li></ul></div></div></section><section id="_zookeeperdiscovery_отправка_сообщения"><h2>ZookeeperDiscovery. Отправка сообщения</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Узел сериализует сообщение и сохраняет его в znode <strong>/&lt;root&gt;/ce/&lt;node-guid&gt;-0000x</strong></p></li><li class="fragment"><p>Координатор получает оповещение об добавлении новых дочерних узлах в <strong>/&lt;root&gt;/ce</strong></p><div class="ulist"><ul><li><p>Координатор проверяет новые сообщения и пропускает если сообщение уже обработано</p></li></ul></div></li><li class="fragment"><p>Координатор добавляет новое событие и собирает подтверждения от других узлов</p></li><li class="fragment"><p>Если событие обработано всеми узлами, лишние данные удаляются координатором.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_отправка_сообщения_ack_message"><h2>ZookeeperDiscovery. Отправка сообщения (Ack Message)</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Если сообщения подразумевает т.н. Ack Message</p><div class="ulist"><ul><li><p>Координатор после обработки исходного сообщения всеми узлами сериализует Ack Message<br>
+в <strong>/&lt;root&gt;/ca/&lt;evt-id&gt;</strong></p></li><li><p>Координатор добавляет новое событие в <strong>/&lt;root&gt;/e</strong></p></li></ul></div></li><li class="fragment"><p>После обработки ack события другими узлами, координатор удаляет лишние данные.</p></li></ul></div></div></section><section id="_zookeeperdiscovery_схема_2"><h2>ZookeeperDiscovery. Схема</h2><div class="slide-content"><div class="imageblock" style=""><img src="images/zk_znode_structure.png" alt="zk znode structure"></div></div></section></section>
 <section><section id="_материалы"><h2>Материалы</h2></section><section id="_книга" class="columns"><div class="slide-content"><div class="imageblock column" style=""><img src="images/zk_book_cover.jpg" alt="zk book cover" width="50%"></div>
 <div class="paragraph column"><p><strong>ZooKeeper: Distributed Process Coordination</strong><br>
 Flavio Junqueira, Benjamin Reed</p></div></div></section><section id="_ссылки"><div class="slide-content"><div class="ulist"><ul><li><p><a href="https://ivandasch.github.io/zk-intro" class="bare">https://ivandasch.github.io/zk-intro</a>&#8201;&#8212;&#8201;слайды</p></li><li><p><a href="https://github.com/ivandasch/zk-intro" class="bare">https://github.com/ivandasch/zk-intro</a>&#8201;&#8212;&#8201;код</p></li><li><p><a href="https://curator.apache.org" class="bare">https://curator.apache.org</a>&#8201;&#8212;&#8201;Apache Curator</p></li><li><p><a href="https://zookeeper.apache.org" class="bare">https://zookeeper.apache.org</a></p></li></ul></div></div></section></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2/js/reveal.js"></script><script>Array.prototype.slice.call(document.querySelectorAll('.slides section')).forEach(function(slide) {
