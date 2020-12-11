@@ -17,18 +17,21 @@ make dependencies
 docker-compose up
 ```
 
+### Локальный браузер зукипера
+Перейти по ссылке -- http://localhost:8000
+
 ### Lock
 * Запуск watcher 
 ```
-make watcher-lock
+make watcher
 ```
 * Запуск writer без правильной блокировки
 ```
-make writer-lock type=fake
+make writer
 ```
 * Запуск writer с блокировкой
 ```
-make writer-lock
+make writer type=lock
 ```
 ### Запуск узла discovery
 ```
