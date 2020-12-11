@@ -54,7 +54,16 @@ func NewEvents() *Events {
 	return ev
 }
 
-func (e *Events) AddEvent(evt DiscoveryEvent, top *SyncTreeMap) {
+func (e *Events) AddNodeFailedEvent(node Node, top *SyncTreeMap) {
+	e.addEvent(DiscoveryEvent{Node: node, Type: NodeFailed}, top)
+	e.onNodeLeave(&node)
+}
+
+func (e *Events) AddNodeJoinedEvent(node Node, top *SyncTreeMap) {
+	e.addEvent(DiscoveryEvent{Node: node, Type: NodeJoined}, top)
+}
+
+func (e *Events) addEvent(evt DiscoveryEvent, top *SyncTreeMap) {
 	e.evtsId++
 	e.topVer++
 	evt.acks = e.makeAcknowledges(top)
@@ -71,26 +80,26 @@ func (e *Events) makeAcknowledges(top *SyncTreeMap) map[uint64]bool {
 	return acks
 }
 
-func (e *Events) OnNodeLeave(node *Node) {
+func (e *Events) onNodeLeave(node *Node) {
 	it := e.events.Iterator()
-	to_remove := make([]uint64, 10)
+	toRemove := make([]uint64, 10)
 	for it.Next() {
 		evtId := it.Key().(uint64)
 		evt := it.Value().(DiscoveryEvent)
 
 		delete(evt.acks, node.NodeOrder)
 		if len(evt.acks) == 0 {
-			to_remove = append(to_remove, evtId)
+			toRemove = append(toRemove, evtId)
 		}
 	}
-	for _, id := range to_remove {
+	for _, id := range toRemove {
 		e.events.Remove(id)
 	}
 }
 
 func (e *Events) OnAckReceived(nodeOrder uint64, procEvtId uint64) {
 	it := e.events.Iterator()
-	to_remove := make([]uint64, 10)
+	toRemove := make([]uint64, 10)
 	for it.Next() {
 		evtId := it.Key().(uint64)
 		evt := it.Value().(DiscoveryEvent)
@@ -98,10 +107,10 @@ func (e *Events) OnAckReceived(nodeOrder uint64, procEvtId uint64) {
 			delete(evt.acks, nodeOrder)
 		}
 		if len(evt.acks) == 0 {
-			to_remove = append(to_remove, evtId)
+			toRemove = append(toRemove, evtId)
 		}
 	}
-	for _, id := range to_remove {
+	for _, id := range toRemove {
 		e.events.Remove(id)
 	}
 }

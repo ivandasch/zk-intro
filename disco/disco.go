@@ -83,17 +83,21 @@ LOOP:
 		if err != nil {
 			disco.ErrorEvents <- tracerr.Wrap(err)
 			return
-		} else if cancel != nil {
-			cancel()
 		}
-		disco.leaderNode.Store(curLeader)
 
-		ctx, cancel = context.WithCancel(context.Background())
+		disco.leaderNode.Store(curLeader)
 
 		justJoined := atomic.LoadUint32(&disco.Joined) == 0
 		if isLeader {
+			if cancel != nil {
+				cancel() // If follower become leader, must cancel follow goroutine.
+			}
+			ctx, cancel = context.WithCancel(context.Background())
+
 			go disco.lead(justJoined, ctx)
-		} else {
+		} else if justJoined {
+			ctx, cancel = context.WithCancel(context.Background())
+
 			go disco.follow(justJoined, ctx)
 		}
 		for {
@@ -104,8 +108,8 @@ LOOP:
 				}
 				switch e.Type {
 				case zk.EventNodeDeleted:
-					continue LOOP
-				default:
+					continue LOOP // Must recheck for leader, because node is deleted
+				default: // If just data changed, check that node exists and resubscribe.
 					var exists bool
 					exists, _, changeLeaderChan, err = disco.client.ExistsW(e.Path)
 					if err != nil && !isRecoverable(err) {
@@ -113,7 +117,7 @@ LOOP:
 						return
 					}
 					if !exists {
-						continue LOOP
+						continue LOOP // If node doesn't exist, must recheck for leader.
 					}
 					continue
 				}
@@ -141,7 +145,7 @@ func (disco *ZkDiscovery) checkLeader(nodePath string) (leader bool, currLeader 
 		leader = true
 		currLeader = localNode
 
-		if localNode.NodeOrder == 0 {
+		if localNode.NodeOrder == 0 { // Order cannot be negative, so this node is automatically leader.
 			return
 		}
 
@@ -165,19 +169,20 @@ func (disco *ZkDiscovery) checkLeader(nodePath string) (leader bool, currLeader 
 			}
 		}
 
-		if localNode.NodeOrder == lowestOrder {
+		if localNode.NodeOrder == lowestOrder { // Node with lowest order is leader.
 			return
 		} else {
 			leader = false
 		}
 
 		var exists bool
+		// Watch on previous node.
 		exists, _, ev, err = disco.client.ExistsW(zk_client.Join(alivePath, prevOrderPath))
 		if err != nil {
 			err = tracerr.Wrap(err)
 			return
 		}
-		if !exists {
+		if !exists { // If previous node doesn't exist, make loop again.
 			continue
 		}
 		return
@@ -186,13 +191,18 @@ func (disco *ZkDiscovery) checkLeader(nodePath string) (leader bool, currLeader 
 
 func (disco *ZkDiscovery) lead(newCluster bool, ctx context.Context) {
 	events := NewEvents()
+	resubscribeTrack := !newCluster
+	// If follower become leader, it must load old events.
 	if !newCluster {
 		if _, err := disco.loadEvents(events, false); err != nil {
 			disco.ErrorEvents <- tracerr.Wrap(err)
 			return
 		}
 	}
+	// Set joined flag to true (1).
 	atomic.CompareAndSwapUint32(&disco.Joined, 0, 1)
+
+	// Channel for tracking processed events from followers.
 	procEvtChan := make(chan LastProcessedEvent, 100)
 
 	log.Printf("local nodeOrder %v is leader", disco.localNode)
@@ -219,14 +229,17 @@ LOOP:
 			}
 			curr[node.NodeOrder] = true
 
-			if _, found := disco.alives.Get(node.NodeOrder); !found {
-				events.AddEvent(DiscoveryEvent{Node: node, Type: NodeJoined}, disco.alives)
+			_, found := disco.alives.Get(node.NodeOrder)
 
-				if node != *disco.localNode {
-					go disco.trackProcessedEvents(c, procEvtChan, ctx)
-				}
-
+			if !found {
+				events.AddNodeJoinedEvent(node, disco.alives)
 				joined = append(joined, node)
+			}
+
+			// Track processed events. If newCluster is false (follower become leader), it must resubscribe to all
+			// alive nodes.
+			if (!found || resubscribeTrack) && node != *disco.localNode {
+				go disco.trackProcessedEvents(c, procEvtChan, ctx)
 			}
 		}
 
@@ -234,13 +247,18 @@ LOOP:
 			node := v.(Node)
 
 			if _, alive := curr[node.NodeOrder]; !alive {
-				events.AddEvent(DiscoveryEvent{Node: node, Type: NodeFailed}, disco.alives)
+				events.AddNodeFailedEvent(node, disco.alives)
 			}
 		}
 
 		if err = disco.saveEvents(events); err != nil {
 			disco.ErrorEvents <- tracerr.Wrap(err)
 			return
+		}
+
+		// Resubscription must run only once.
+		if resubscribeTrack {
+			resubscribeTrack = false
 		}
 
 		if err = disco.createClusterDataForJoined(joined); err != nil {
@@ -257,7 +275,7 @@ LOOP:
 					disco.ErrorEvents <- tracerr.Wrap(e.Err)
 					return
 				}
-				continue LOOP
+				continue LOOP // Go to start of lead loop to check joined or failed nodes.
 			case <-ctx.Done():
 				close(procEvtChan)
 				return
@@ -269,6 +287,7 @@ LOOP:
 	}
 }
 
+// Track processed events from followers. Notify processed events by procEvtChan.
 func (disco *ZkDiscovery) trackProcessedEvents(nodePath string, procEvtChan chan<- LastProcessedEvent, ctx context.Context) {
 	node, err := NewNode(nodePath)
 	if err != nil {
@@ -318,13 +337,16 @@ func (disco *ZkDiscovery) saveEvents(events *Events) error {
 	return nil
 }
 
+// Save current topology for joined nodes.
 func (disco *ZkDiscovery) createClusterDataForJoined(joined []Node) error {
+	data, err := msgpack.Marshal(NewTopology(disco.alives))
+	if err != nil {
+		return tracerr.Wrap(err)
+	}
 	for _, n := range joined {
-		data, err := msgpack.Marshal(NewTopology(disco.alives))
-		if err != nil {
-			return tracerr.Wrap(err)
+		if n == *disco.localNode {
+			continue
 		}
-
 		_, err = disco.client.SetOrCreateIfNotExists(dataForJoinedPath+n.NodeId.String(), data)
 		if err != nil {
 			return tracerr.Wrap(err)
@@ -333,16 +355,19 @@ func (disco *ZkDiscovery) createClusterDataForJoined(joined []Node) error {
 	return nil
 }
 
+// Follower loop.
 func (disco *ZkDiscovery) follow(justJoined bool, ctx context.Context) {
 	events := NewEvents()
 	loadClusterData := justJoined
 
+	// Set joined flag to 1 (true).
 	atomic.CompareAndSwapUint32(&disco.Joined, 0, 1)
 
 	curLeader := disco.leaderNode.Load().(Node)
 	log.Printf("local nodeOrder %v is follower, leader is %v\n", disco.localNode, curLeader)
 
 	for {
+		// Load cluster data only on first iteration of loop.
 		if loadClusterData {
 			if err := disco.loadClusterData(ctx); err != nil {
 				disco.ErrorEvents <- tracerr.Wrap(err)
@@ -356,7 +381,6 @@ func (disco *ZkDiscovery) follow(justJoined bool, ctx context.Context) {
 			disco.ErrorEvents <- tracerr.Wrap(err)
 			return
 		}
-
 		disco.processEvents(events, false)
 
 		select {
@@ -399,13 +423,9 @@ func (disco *ZkDiscovery) processEvents(events *Events, leader bool) {
 	newLeader := false
 	for iter.Next() {
 		key := iter.Key().(uint64)
-
 		if key <= disco.evtsProcessed {
 			continue
 		}
-
-		disco.evtsProcessed = key
-
 		val := iter.Value().(DiscoveryEvent)
 
 		switch val.Type {
@@ -418,15 +438,10 @@ func (disco *ZkDiscovery) processEvents(events *Events, leader bool) {
 				_, min := disco.alives.Min()
 				disco.leaderNode.Store(min)
 			}
-
-			if leader {
-				events.OnNodeLeave(&val.Node)
-			}
 		}
 
-		if events.topVer <= val.TopVer {
-			disco.DiscoEvents <- val
-		}
+		disco.DiscoEvents <- val
+		disco.evtsProcessed = key
 
 		if !leader && newLeader {
 			log.Printf("local nodeOrder %v is follower, leader is %v\n", disco.localNode, curLeader)
@@ -517,7 +532,7 @@ func (disco *ZkDiscovery) CreateSessionNode(basePath string) error {
 		switch err {
 		case zk.ErrSessionExpired:
 			continue
-		case zk.ErrConnectionClosed:
+		case zk.ErrConnectionClosed: // Must check if node was already created when connection was lost.
 			children, _, err := disco.client.Children(basePath)
 			if err != nil {
 				return tracerr.Wrap(err)

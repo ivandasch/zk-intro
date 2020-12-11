@@ -27,7 +27,7 @@ func NewLock(cli *zk_client.ZkClient, path string, acl []zk.ACL) *Lock {
 
 func (l *Lock) Lock() error {
 	if l.lock != "" {
-		return fmt.Errorf("trying to acquire lock twice")
+		return fmt.Errorf("trying to acquire lock twice %s", l.lock)
 	}
 
 	path := ""

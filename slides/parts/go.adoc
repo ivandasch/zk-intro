@@ -14,16 +14,17 @@
 ch := make(chan string)
 go func() {
     for i := 0; i < 10; i++ {
-        ch <- strconv.Itoa(i) <2>
+        ch <- strconv.Itoa(i) // Отправляем данные в канал
         time.Sleep(1 * time.Second)
     }
-}() <1>
+}() // Запускаем анонимную горутину
 
 for {
     select { <3>
-        case i := <- ch: <4>
+        case i := <- ch: // Читаем данные из канала
             fmt.Println("Got number: %s", i)
-        case <- closeCh: <5>
+            continue
+        case <- closeCh:
         	return
     }
 }
@@ -32,25 +33,29 @@ for {
 === API GO-style
 [source, go]
 ----
+// Запросы на чтение
 func (client *ZkClient) Exists(path string) (ok bool, stat *zk.Stat, err error)
-func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt <-chan zk.Event, err error) <1>
 func (client *ZkClient) Get(path string) (data []byte, stat *zk.Stat, err error)
-func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt <-chan zk.Event, err error) <1>
 func (client *ZkClient) Children(path string) (children []string, stat *zk.Stat, err error)
-func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat, evt <-chan zk.Event, err error)<1>
 
+// Запросы с подпиской.
+func (client *ZkClient) ExistsW(path string) (ok bool, stat *zk.Stat, evt <-chan zk.Event, err error)
+func (client *ZkClient) GetW(path string) (data []byte, stat *zk.Stat, evt <-chan zk.Event, err error)
+func (client *ZkClient) ChildrenW(path string) (children []string, stat *zk.Stat, evt <-chan zk.Event, err error)
+
+// Запросы на изменение
 func (client *ZkClient) Create(path string, data []byte, flags int32, acl []zk.ACL) (res string, err error)
 func (client *ZkClient) Set(path string, data []byte, version int32) (stat *zk.Stat, err error)
 func (client *ZkClient) Delete(path string, version int32) (err error)
 ----
-<1> -- Вместо коллбека -- используется канал для входящих событий
 
 === Получение данных и подписка
 [source, go]
 ----
+path := "/some_node"
 for {
-    data, _, evt, err := cli.GetW(path)
-    if err == zk.ErrNoNode {
+    data, _, evt, err := cli.GetW(path) // Получение данных из /some_node с подпиской
+    if err == zk.ErrNoNode { // Если /some_node не существует, продолжим цикл сначала
         continue
     } else if err != nil {
         panic(err)
@@ -58,12 +63,10 @@ for {
     fmt.Printf("Got new value %s", string(data))
     select {
     case e := <-evt:
-        case e := <-evt:
         if e.Type != zk.EventNodeDataChanged {
             fmt.Printf("Unexpected type of event %s\n", e.Type)
         }
-        continue <1>
+        continue //  Переходим в начало цикла.
     }
 }
 ----
-<1> -- Переходим в начало цикла и переподписываемся.

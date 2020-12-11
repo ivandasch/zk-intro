@@ -2,30 +2,28 @@
 [source, go]
 ----
 func (l *Lock) Lock() error {
-    path := l.CreateLockNode() //-lock/guid-00000x
-    order := parseSeq(path)
+    path := l.CreateLockNode() //Создаем EPHEMERAL_SEQUENTIAL -lock/guid-00000x
+    order := parseSeq(path) // Определяем номер из path znode, созданной на пред. шаге
 
     for {
-        children, _, evt, _ := l.zk_client.ChildrenW(l.path)
+        children, _, evt, _ := l.zk_client.ChildrenW(l.path) // Берем дочерние узлы и ставим watch (канал evt)
         lowestOrder := process(children)
 
-        if order == lowestOrder {
+        if order == lowestOrder { // Если у нашего узла самый низкий номер, мы захватили лок
             break
         }
 
-        ev := <-evt
+        ev := <-evt // Приостанавливаем сопрограмму пока не придет событие из канала evt
         if ev.Err != nil {
             return ev.Err
         }
     }
-
-    l.order = order
     l.lock = path
     return nil
 }
 
 func (l *Lock) Unlock() {
-	_ = l.zk_client.Delete(l.lock, -1)
+    _ = l.zk_client.Delete(l.lock, -1) // Отпуская мьютекс, просто удалем znode
 }
 ----
 === Что не так? ===
@@ -41,33 +39,29 @@ func (l *Lock) Lock() error {
     order := parseSeq(path)
 
     for {
-        children, _, _ := l.zk_client.Children(l.path) <1>
+        children, _, _ := l.zk_client.Children(l.path) // Берем дочерние узлы без отслеживания
         lowestOrder, prevOrderPath := process(children, order)
 
         if order == lowestOrder {
             break
         }
 
-        exists, _, ch, err := l.zk_client.ExistsW(l.path + "/" + prevOrderPath) <2>
+        exists, _, ch, err := l.zk_client.ExistsW(l.path + "/" + prevOrderPath) // Берем предыдущую по порядку znode
         if err != nil {
             return err
-        } else if !exists {
+        } else if !exists { // Если она была удалена, переходим в начало цикла
             continue
         }
 
-        ev := <-ch
+        ev := <-ch // Иначе приостанавливаем сопрограмму пока не придет событие в канал
         if ev.Err != nil {
             return ev.Err
         }
     }
-
-    l.order = order
     l.lock = path
     return nil
 }
 ----
-<1> -- Берем дочерние узлы без отслеживания
-<2> -- Отслеживаем предыдущий узел
 
 === Выбор лидера ===
 [source, go]
@@ -76,7 +70,7 @@ func NewService() *Service {
     service := &Service{
         ....
     }
-    service.localNodePath = createServiceNode // EPHEMERAL_SEQUENTIAL, _services/guid-0000x
+    service.localNodePath = createServiceNode() // Создаем znode EPHEMERAL_SEQUENTIAL с именем _services/guid-0000x
     go loop()
     return &service
 }
@@ -84,21 +78,21 @@ func NewService() *Service {
 func (service *Service) loop() {
     LOOP:
     for {
-        isLeader, changeLeaderChan, err := service.checkLeader(service.localNodePath)
+        isLeader, changeLeaderChan, err := service.checkLeader(service.localNodePath) // Проверяем кто сейчас лидер.
 
         if isLeader {
-            go service.lead()
+            go service.lead() // Если текущий сервис лидер, запускаем сопрограмму lead
         } else {
-            go service.follow()
+            go service.follow() // Иначе сопрограмму follow
         }
 
         for {
             select {
-            case e := <-changeLeaderChan:
+            case e := <-changeLeaderChan: // Отслеживаем события из канала, на который создали ранее
                 switch e.Type {
-                case zk.EventNodeDeleted:
+                case zk.EventNodeDeleted: // Если отслеживаемая znode была удалена, переходим в начало цикла
                     continue LOOP
-                default:
+                default: // Иначе переподписываемся (заодно проверяем что znode не была удалена после события)
                     var exists bool
                     exists, _, changeLeaderChan, _ = service.zk_client.ExistsW(e.Path)
 
@@ -118,14 +112,14 @@ func (service *Service) loop() {
 ----
 func (service *Service) checkLeader(nodePath string) (bool, ev <-chan zk.Event, error) {
     for {
-    	children, _, err := disco.client.Children(alivePath)
+    	children, _, err := disco.client.Children(alivePath) // Берем все дочернии узлы без отслеживания
         order := parseSeq(nodePath)
         lowestOrder, previousOrderPath := process(children, order)
 
-        if lowestOrder == order {
+        if lowestOrder == order { // Если у текущего процесса самый низкий порядок, он лидер
             return true, nil, nil
         } else {
-            exists, _, ev, err = service.zk_client.ExistsW(previousOrderPath) <1>
+            exists, _, ev, err = service.zk_client.ExistsW(previousOrderPath) // Иначе отслеживаем предыдущий по порядку
             if !exists {
                 continue
             } else {
@@ -135,7 +129,6 @@ func (service *Service) checkLeader(nodePath string) (bool, ev <-chan zk.Event, 
     }
 }
 ----
-<1> -- Вопрос залу -- почему так?
 
 === Рецепты это сложно
 [%step]

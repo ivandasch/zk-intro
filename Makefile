@@ -8,12 +8,12 @@ help: Makefile
 dependencies:
 	go mod download
 
-## watcher-lock: run watcher from lock example
-watcher-lock:
+## watcher: run watcher from lock example
+watcher:
 	go run -race ./lock watcher
 
-## writer-lock: run writer from lock example. If optional type=fake is set, run without locking.
-writer-lock:
+## writer: run writer from lock example. If optional type=naive is set, run without locking. If type=lock, run with locking.
+writer:
 	go run -race ./lock writer $(type)
 
 ## disco: run discovery node

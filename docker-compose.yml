@@ -31,3 +31,10 @@ services:
       ZOO_MY_ID: 3
       ZOO_TICK_TIME: 500
       ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=0.0.0.0:2888:3888;2181
+
+  zoonavigator:
+    image: elkozmon/zoonavigator
+    restart: always
+    network_mode: host
+    environment:
+      HTTP_PORT: 8000

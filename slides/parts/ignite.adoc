@@ -107,10 +107,12 @@ digraph ZK {
 graphviz::parts/zk_znode_structure.dot[format=png]
 
 === ZookeeperDiscovery
+[%step]
 * Каждый узел регистрирует **/<root>/n/guid-0000x** (`EPHEMERAL_SEQUENTIAL`)
 * Серверные узлы участвуют в выборе лидера(координатора) (см. рецепт `_Leader Election_`)
 
 === ZookeeperDiscovery. События
+[%step]
 * Все события генерирует только координатор
 * События сохраняются в **/<root>/e** в виде
 ** Упорядоченный список событий
@@ -121,10 +123,8 @@ graphviz::parts/zk_znode_structure.dot[format=png]
 * Координатор отслеживает изменения данных в каждой znode в **/<root>/n** и удаляет из списка
 события, которые уже обработаны всеми узлами кластера.
 
-=== ZookeeperDiscovery. Схема
-graphviz::parts/zk_znode_structure.dot[format=png]
-
 === ZookeeperDiscovery. Вход узла в топологию.
+[%step]
 * При входе узла, узел создает
 ** Собственную znode **/<root>/n/guid-0000x** (`EPHEMERAL_SEQUENTIAL`)
 ** Метаданные, которыми узел делится с кластером **/<root>/jd/<guid>**
@@ -138,10 +138,8 @@ graphviz::parts/zk_znode_structure.dot[format=png]
 * После обработки всеми узлами кластера события, координатор удаляет ненужные данные (
 **/<root>/e/fj-<evtid>** и **/<root>/e/jd/<guid>**)
 
-=== ZookeeperDiscovery. Схема
-graphviz::parts/zk_znode_structure.dot[format=png]
-
 === ZookeeperDiscovery. Обработка выхода узла
+[%step]
 * При выходе узла из топологии, удаляется его znode **/<root>/n/guid-0000x**
 ** При штатном выходе узел удалает ее сам а также создает стоп флаг +
 **/<root>/sf/<guid>-0000x** (с версии 2.9.1)
@@ -150,20 +148,16 @@ graphviz::parts/zk_znode_structure.dot[format=png]
 ** Если не найдет стоп-флаг -- создает событие о аварийном выходе узла.
 ** Если найден -- создает событие о штатном выходе узла (с версии 2.9.1) и удаляет стоп-флаг.
 
-=== ZookeeperDiscovery. Схема
-graphviz::parts/zk_znode_structure.dot[format=png]
-
 === ZookeeperDiscovery. Отправка сообщения
+[%step]
 * Узел сериализует сообщение и сохраняет его в znode **/<root>/ce/<node-guid>-0000x**
 * Координатор получает оповещение об добавлении новых дочерних узлах в **/<root>/ce**
 ** Координатор проверяет новые сообщения и пропускает если сообщение уже обработано
 * Координатор добавляет новое событие и собирает подтверждения от других узлов
 * Если событие обработано всеми узлами, лишние данные удаляются координатором.
 
-=== ZookeeperDiscovery. Схема
-graphviz::parts/zk_znode_structure.dot[format=png]
-
 === ZookeeperDiscovery. Отправка сообщения (Ack Message)
+[%step]
 * Если сообщения подразумевает т.н. Ack Message
 ** Координатор после обработки исходного сообщения всеми узлами сериализует Ack Message +
 в **/<root>/ca/<evt-id>**

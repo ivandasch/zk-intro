@@ -1,12 +1,13 @@
 === Обозначения
+[%step]
 . Эпоха -- stem:[E := \{e_i : i \in N, e_i < e_j \}]
 . Лидер -- stem:[\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i < e_j ]
-. Идентификатор транзакции -- stem:[z := <e_i, j>, j \in N ]
-. Транзакция -- stem:[tx_{v,z} := \langle v, z \rangle]
+. Идентификатор транзакции -- stem:[zxid := <e_i, j>, j \in N ]
 . Кворум -- stem:[Q \subseteq {s_1, s_2, ... s_N} : |Q| > N/2]
 Транзакции распространяются лидером и фиксируются серверами.
 
 === Strong leadership
+[%step]
 . В любой момент времени может быть только **один лидер**
 . Запросы на **изменения** данных перенаправляются и обрабатываются только **лидером**
 . Запросы на изменения данных подтверждаются **кворумом**
@@ -28,6 +29,7 @@ LOOKING -left-> FOLLOWING
 ----
 
 === ZAB. Лидер (LEADER)
+[%step]
 . При получении запроса на изменение от клиента или последователя:
 .. Генерирует предложение (`PROPOSAL`) и отправляет последователям.
 .. Синхронизирует данные в журнал транзакции и генерирует подтверждение от себя (`ACK`)
@@ -53,7 +55,7 @@ AckRequestProcessor -right-> end1
 ----
 
 === ZAB. Последователь (FOLLOWER)
-
+[%step]
 . При получении запроса на изменения от клиента:
 .. Перенаправляет запросы на изменения лидеру
 .. При получении `COMMIT` меняет структуру данных
@@ -82,6 +84,7 @@ AckRequestProcessor -right-> [*]
 ----
 
 === Выборы лидера (LEADER ELECTION)
+[%step]
 . Создаем свой голос stem:[v := \langle S_{id}, zxid\rangle]
 . Отправляем голос другим серверам
 . При получении голоса stem:[v' := \langle S'_{id}, zxid'\rangle] от другого сервера
@@ -90,43 +93,17 @@ AckRequestProcessor -right-> [*]
 . Продолжаем выборы пока не получим от всех серверов одинаковые голоса.
 
 === Синхронизация
+[%step]
 . Последователи от нового лидера получают
 .. `DIFF` или `TRUNC` если нужно применить разность или отбросить транзакции с определенной stem:[zxid]
 .. `SNAP` если последователь сильно отстал и надо применить полный снимок данных с лидера
 
 === ZAB (Гарантии)
-**Обозначения**
-
-. Эпоха -- stem:[E := \{e_i : i \in N, e_i < e_j \}]
-. Лидер -- stem:[\Lambda:= \{\lambda_{e_1}... \lambda_{e_N}\} :  \lambda_{e_i} \prec \lambda_{e_j} \quad iff \quad  e_i < e_j ]
-. Идентификатор транзакции -- stem:[z := <e_i, j>, j \in N ]
-. Транзакция -- stem:[tx_{v,z} := \langle v, z \rangle]
-Транзакции распространяются лидером и фиксируются серверами.
-
-=== ZAB (Гарантии)
-* Если на каком-то из серверов stem:[\langle v, z \rangle] зафиксирована, то она была распространена
-каким-то из серверов
-* Если на каком-то из серверов stem:[\langle v, z \rangle] зафиксирована до stem:[\langle v', z' \rangle],
-то на любом сервере , на котором зафиксирована stem:[\langle v', z' \rangle],
-обязана быть зафиксирована stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle]
-* Если на каком-то сервере stem:[s] зафиксирована stem:[\langle v, z \rangle], а на
-stem:[s'] зафиксирована stem:[\langle v', z' \rangle], то либо на stem:[s] зафиксирована
-также stem:[\langle v', z' \rangle], либо на stem:[s'] зафиксирована stem:[\langle v, z \rangle]
-
-=== ZAB (Гарантии)
-* Если stem:[\lambda_i] распространил stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle],
-то сервер, зафиксировавший stem:[\langle v', z' \rangle], обязан зафиксировать stem:[\langle v, z \rangle]
-до stem:[\langle v', z' \rangle]
-* Пусть stem:[\lambda_j \succ \lambda_i], stem:[\lambda_i] распространил stem:[\langle v, z \rangle],
-stem:[\lambda_j] распространил stem:[\langle v', z' \rangle]. Тогда если какой-нибудь сервер зафиксировал
-stem:[\langle v, z \rangle] и stem:[\langle v', z' \rangle], то он обязан зафиксировать
-stem:[\langle v, z \rangle] до stem:[\langle v', z' \rangle]
-* Пусть stem:[\lambda_j \succ \lambda_i], stem:[\lambda_i] распространил stem:[\langle v, z \rangle],
-stem:[\lambda_j] распространяет stem:[\langle v', z' \rangle] и какой-нибудь процесс зафиксировал
-stem:[\langle v, z \rangle]. Тогда stem:[\langle v, z \rangle] обязана быть зафиксирована
-на stem:[\lambda_j] до распространения stem:[\langle v', z' \rangle]
+** Если stem:[zxid < zxid'] и на каком-то произвольном сервере зафиксирована stem:[tx_{zxid'}], то на этом
+сервере зафиксирована stem:[tx_{zxid}], причем stem:[tx_{zxid} \prec tx_{zxid'}].
 
 === Клиентские сессии
+[%step]
 * У клиентской сессии есть длительность (session timeout)
 * Клиентские сессии отслеживаются лидером
 * Клиентские сессии синхронизируются от последователя к лидеру каждые stem:[tick / 2]
